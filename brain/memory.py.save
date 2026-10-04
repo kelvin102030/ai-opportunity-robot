@@ -1,0 +1,90 @@
+import sqlite3
+from pathlib import Path
+
+DB_PATH = Path(__file__).parent / "memory.db"
+
+
+def connect():
+    return sqlite3.connect(DB_PATH)
+
+
+def initialize_memory():
+    with connect() as db:
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS opportunities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                problem TEXT NOT NULL,
+                solution TEXT,
+                target_customer TEXT,
+                revenue_potential TEXT,
+                confidence REAL DEFAULT 0,
+                status TEXT DEFAULT 'new',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        db.commit()
+
+
+def remember_opportunity(
+    title,
+    problem,
+    solution="",
+    target_customer="",
+    revenue_potential="",
+    confidence=0,
+    notes=""
+):
+    with connect() as db:
+        cursor = db.execute("""
+            INSERT INTO opportunities (
+                title,
+                problem,
+                solution,
+                target_customer,
+                revenue_potential,
+                confidence,
+                notes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            title,
+            problem,
+            solution,
+            target_customer,
+            revenue_potential,
+            confidence,
+            notes
+        ))
+
+        db.commit()
+        return cursor.lastrowid
+
+
+def recall_opportunities():
+    with connect() as db:
+        cursor = db.execute("""
+            SELECT
+                id,
+                title,
+                problem,
+                solution,
+                target_customer,
+                revenue_potential,
+                confidence,
+                status,
+                notes,
+                created_at
+            FROM opportunities
+            ORDER BY created_at DESC
+        """)
+
+        return cursor.fetchall()
+
+
+if __name__ == "__main__":
+    initialize_memory()
+    print("Robot memory initialized.")
+mkdir -p brain
+
