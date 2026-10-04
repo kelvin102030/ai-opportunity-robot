@@ -2,6 +2,7 @@ from flask import Flask, jsonify, render_template_string
 import threading
 import io
 from contextlib import redirect_stdout
+from brain.memory import initialize_memory, recall_opportunities, recall_evidence
 
 app = Flask(__name__)
 
@@ -528,6 +529,100 @@ def home():
 def status():
     return jsonify(robot_state)
 
+
+@app.get("/history")
+def history():
+    initialize_memory()
+    opportunities = recall_opportunities()
+
+    rows = []
+    for item in opportunities:
+        (
+            opportunity_id,
+            title,
+            problem,
+            solution,
+            target_customer,
+            revenue_potential,
+            confidence,
+            status,
+            notes,
+            created_at,
+        ) = item
+
+        evidence = recall_evidence(opportunity_id)
+
+        rows.append({
+            "id": opportunity_id,
+            "title": title,
+            "problem": problem,
+            "solution": solution,
+            "target_customer": target_customer,
+            "revenue_potential": revenue_potential,
+            "confidence": confidence,
+            "status": status,
+            "notes": notes,
+            "created_at": created_at,
+            "evidence_count": len(evidence),
+        })
+
+    cards = ""
+
+    for item in rows:
+        cards += f"""
+        <div style="background:#0d1b2a;border:1px solid #23435f;border-radius:14px;padding:18px;margin-bottom:14px">
+            <h2 style="margin-top:0">{item["title"]}</h2>
+            <p><strong>Problem:</strong> {item["problem"]}</p>
+            <p><strong>Customer:</strong> {item["target_customer"]}</p>
+            <p><strong>Solution:</strong> {item["solution"]}</p>
+            <p><strong>Revenue:</strong> {item["revenue_potential"]}</p>
+            <p><strong>Confidence:</strong> {item["confidence"]:.0%}</p>
+            <p><strong>Evidence:</strong> {item["evidence_count"]} signals</p>
+            <p><strong>Created:</strong> {item["created_at"]}</p>
+        </div>
+        """
+
+    if not cards:
+        cards = """
+        <div style="background:#0d1b2a;border:1px solid #23435f;border-radius:14px;padding:18px">
+            No saved opportunities yet. Run an opportunity discovery first.
+        </div>
+        """
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Opportunity History</title>
+        <style>
+            body {{
+                margin:0;
+                background:#040912;
+                color:#edfaff;
+                font-family:Arial,sans-serif;
+            }}
+            main {{
+                max-width:850px;
+                margin:auto;
+                padding:20px;
+            }}
+            a {{
+                color:#7dd3fc;
+                text-decoration:none;
+            }}
+        </style>
+    </head>
+    <body>
+        <main>
+            <p><a href="/">← Back to Robot</a></p>
+            <h1>📚 Opportunity History</h1>
+            <p>Saved discoveries from the robot's memory.</p>
+            {cards}
+        </main>
+    </body>
+    </html>
+    """
 
 @app.post("/api/run")
 def start_robot():
