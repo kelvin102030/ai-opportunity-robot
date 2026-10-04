@@ -464,6 +464,7 @@ function renderOpportunity(raw){
             </div>
 
             <button onclick="showEvidence()">📰 View Research Evidence</button>
+            <a href="/history" style="display:inline-block;margin-top:10px;padding:10px 14px;border-radius:10px;background:#123047;color:#7dd3fc;text-decoration:none;">📚 View Opportunity History</a>
 
             <div id="evidence" class="section hidden">
                 <h3>Research Evidence</h3>
