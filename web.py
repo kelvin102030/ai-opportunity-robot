@@ -531,6 +531,111 @@ def status():
     return jsonify(robot_state)
 
 
+@app.get("/opportunity/<int:opportunity_id>")
+def opportunity_detail(opportunity_id):
+    initialize_memory()
+    opportunities = recall_opportunities()
+
+    opportunity = next(
+        (item for item in opportunities if item[0] == opportunity_id),
+        None,
+    )
+
+    if opportunity is None:
+        return "Opportunity not found", 404
+
+    (
+        opportunity_id,
+        title,
+        problem,
+        solution,
+        target_customer,
+        revenue_potential,
+        confidence,
+        status,
+        notes,
+        created_at,
+    ) = opportunity
+
+    evidence = recall_evidence(opportunity_id)
+
+    evidence_cards = ""
+
+    for index, item in enumerate(evidence, start=1):
+        query, evidence_title, link, description, published = item
+
+        evidence_cards += f"""
+        <div style="background:#0d1b2a;border:1px solid #23435f;border-radius:14px;padding:18px;margin-bottom:14px">
+            <h3 style="margin-top:0">{index}. {evidence_title}</h3>
+            <p><strong>Query:</strong> {query}</p>
+            <p><strong>Published:</strong> {published}</p>
+            <p>{description}</p>
+            <p><a href="{link}" target="_blank" rel="noopener noreferrer">Open source →</a></p>
+        </div>
+        """
+
+    if not evidence_cards:
+        evidence_cards = """
+        <div style="background:#0d1b2a;border:1px solid #23435f;border-radius:14px;padding:18px">
+            No research evidence has been saved for this opportunity.
+        </div>
+        """
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{title}</title>
+        <style>
+            body {{
+                margin:0;
+                background:#040912;
+                color:#edfaff;
+                font-family:Arial,sans-serif;
+            }}
+            main {{
+                max-width:850px;
+                margin:auto;
+                padding:20px;
+            }}
+            a {{
+                color:#7dd3fc;
+                text-decoration:none;
+            }}
+            .card {{
+                background:#0d1b2a;
+                border:1px solid #23435f;
+                border-radius:14px;
+                padding:18px;
+                margin-bottom:14px;
+            }}
+        </style>
+    </head>
+    <body>
+        <main>
+            <p><a href="/history">← Back to Opportunity History</a></p>
+            <h1>{title}</h1>
+
+            <div class="card">
+                <p><strong>Problem:</strong> {problem}</p>
+                <p><strong>Customer:</strong> {target_customer}</p>
+                <p><strong>Solution:</strong> {solution}</p>
+                <p><strong>Revenue:</strong> {revenue_potential}</p>
+                <p><strong>Confidence:</strong> {confidence:.0%}</p>
+                <p><strong>Status:</strong> {status}</p>
+                <p><strong>Created:</strong> {created_at}</p>
+                <p><strong>Notes:</strong> {notes}</p>
+            </div>
+
+            <h2>📰 Research Evidence</h2>
+            {evidence_cards}
+        </main>
+    </body>
+    </html>
+    """
+
+
 @app.get("/history")
 def history():
     initialize_memory()
@@ -572,7 +677,7 @@ def history():
     for item in rows:
         cards += f"""
         <div style="background:#0d1b2a;border:1px solid #23435f;border-radius:14px;padding:18px;margin-bottom:14px">
-            <h2 style="margin-top:0">{item["title"]}</h2>
+            <h2 style="margin-top:0"><a href="/opportunity/{item["id"]}">{item["title"]}</a></h2>
             <p><strong>Problem:</strong> {item["problem"]}</p>
             <p><strong>Customer:</strong> {item["target_customer"]}</p>
             <p><strong>Solution:</strong> {item["solution"]}</p>
@@ -580,6 +685,7 @@ def history():
             <p><strong>Confidence:</strong> {item["confidence"]:.0%}</p>
             <p><strong>Evidence:</strong> {item["evidence_count"]} signals</p>
             <p><strong>Created:</strong> {item["created_at"]}</p>
+            <p><a href="/opportunity/{item["id"]}">View full opportunity →</a></p>
         </div>
         """
 
