@@ -1,8 +1,13 @@
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, request, redirect
 import threading
 import io
 from contextlib import redirect_stdout
-from brain.memory import initialize_memory, recall_opportunities, recall_evidence
+from brain.memory import (
+    initialize_memory,
+    recall_opportunities,
+    recall_evidence,
+    update_opportunity_status,
+)
 
 app = Flask(__name__)
 
@@ -531,6 +536,31 @@ def status():
     return jsonify(robot_state)
 
 
+@app.post("/opportunity/<int:opportunity_id>/validate")
+def validate_opportunity(opportunity_id):
+    initialize_memory()
+
+    opportunities = recall_opportunities()
+
+    opportunity = next(
+        (item for item in opportunities if item[0] == opportunity_id),
+        None,
+    )
+
+    if opportunity is None:
+        return "Opportunity not found", 404
+
+    status = request.form.get("status", "").strip()
+    notes = request.form.get("notes", "").strip()
+
+    try:
+        update_opportunity_status(opportunity_id, status, notes)
+    except ValueError:
+        return "Invalid validation status", 400
+
+    return redirect(f"/opportunity/{opportunity_id}")
+
+
 @app.get("/opportunity/<int:opportunity_id>")
 def opportunity_detail(opportunity_id):
     initialize_memory()
@@ -626,6 +656,41 @@ def opportunity_detail(opportunity_id):
                 <p><strong>Status:</strong> {status}</p>
                 <p><strong>Created:</strong> {created_at}</p>
                 <p><strong>Notes:</strong> {notes}</p>
+            </div>
+
+            <div class="card">
+                <h2>🔎 Validation</h2>
+                <p>Update the validation stage and record what you learned.</p>
+
+                <form method="post" action="/opportunity/{opportunity_id}/validate">
+                    <label for="status"><strong>Status</strong></label>
+                    <select
+                        id="status"
+                        name="status"
+                        style="display:block;width:100%;margin:8px 0 14px;padding:10px;border-radius:8px;background:#07111d;color:#edfaff;border:1px solid #23435f;"
+                    >
+                        <option value="new" {"selected" if status == "new" else ""}>New</option>
+                        <option value="validating" {"selected" if status == "validating" else ""}>Validating</option>
+                        <option value="validated" {"selected" if status == "validated" else ""}>Validated</option>
+                        <option value="rejected" {"selected" if status == "rejected" else ""}>Rejected</option>
+                    </select>
+
+                    <label for="notes"><strong>Validation notes</strong></label>
+                    <textarea
+                        id="notes"
+                        name="notes"
+                        rows="5"
+                        placeholder="Record interviews, tests, customer feedback, pricing evidence, or reasons for rejection..."
+                        style="display:block;width:100%;box-sizing:border-box;margin:8px 0 14px;padding:10px;border-radius:8px;background:#07111d;color:#edfaff;border:1px solid #23435f;"
+                    >{notes}</textarea>
+
+                    <button
+                        type="submit"
+                        style="padding:11px 16px;border:0;border-radius:9px;background:#123047;color:#7dd3fc;cursor:pointer;"
+                    >
+                        Save Validation
+                    </button>
+                </form>
             </div>
 
             <h2>📰 Research Evidence</h2>

@@ -154,6 +154,25 @@ def remember_evidence(
         return cursor.lastrowid
 
 
+def update_opportunity_status(opportunity_id, status, notes=""):
+    allowed_statuses = {"new", "validating", "validated", "rejected"}
+
+    if status not in allowed_statuses:
+        raise ValueError("Invalid opportunity status")
+
+    with connect() as db:
+        db.execute(
+            """
+            UPDATE opportunities
+            SET status = ?,
+                notes = ?
+            WHERE id = ?
+            """,
+            (status, notes, opportunity_id),
+        )
+        db.commit()
+
+
 def recall_opportunities():
     with connect() as db:
         return db.execute("""
