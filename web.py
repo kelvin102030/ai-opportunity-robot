@@ -11,6 +11,18 @@ from brain.memory import (
 
 app = Flask(__name__)
 
+@app.get("/manifest.json")
+def manifest():
+    return app.send_static_file("manifest.json")
+
+@app.get("/service-worker.js")
+def service_worker():
+    response = app.send_static_file("service-worker.js")
+    response.headers["Content-Type"] = "application/javascript"
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
+
+
 robot_state = {
     "status": "ready",
     "message": "Hello! I am your AI Opportunity Robot.",
@@ -22,7 +34,12 @@ HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
 <title>AI Opportunity Robot</title>
 
 <style>
@@ -499,6 +516,14 @@ async function runRobot(){
 
 setInterval(loadStatus,3000);
 loadStatus();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js");
+    });
+}
 </script>
 
 </body>
