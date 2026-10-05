@@ -470,6 +470,40 @@ function handleVoiceCommand(command){
         return;
     }
 
+    if(
+        command.includes("how are you") ||
+        command.includes("how are you doing") ||
+        command.includes("are you okay")
+    ){
+        speakText("I am doing well and I am ready to help you discover new opportunities.");
+        return;
+    }
+
+    if(
+        command.includes("who are you") ||
+        command.includes("what are you")
+    ){
+        speakText("I am your AI Opportunity Robot. I research problems, discover opportunities, and help you explore business ideas.");
+        return;
+    }
+
+    if(
+        command.includes("what can you do") ||
+        command.includes("what do you do")
+    ){
+        speakText("I can research real-world problems, discover business opportunities, explain what I find, and respond to your voice commands.");
+        return;
+    }
+
+    if(
+        command.includes("hello") ||
+        command.includes("hi") ||
+        command.includes("hey")
+    ){
+        speakText("Hello! I am ready. You can ask me how I am doing, ask what I can do, or tell me to start research.");
+        return;
+    }
+
     if(command.includes("stop speaking") || command.includes("be quiet")){
         stopSpeaking();
         return;
@@ -477,7 +511,7 @@ function handleVoiceCommand(command){
 
     speakText(
         "I heard you say " + command +
-        ". I do not know that command yet."
+        ". I do not know that command yet, but I am learning more voice commands."
     );
 }
 
