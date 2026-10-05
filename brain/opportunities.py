@@ -38,8 +38,17 @@ def _story_terms(title):
 
 
 def _stories_related(left, right):
-    left_terms = _story_terms(left.get("title", ""))
-    right_terms = _story_terms(right.get("title", ""))
+    left_title = left.get("title", "")
+    right_title = right.get("title", "")
+
+    left_numbers = _story_numbers(left_title)
+    right_numbers = _story_numbers(right_title)
+
+    if left_numbers & right_numbers:
+        return True
+
+    left_terms = _story_terms(left_title)
+    right_terms = _story_terms(right_title)
 
     shared = left_terms & right_terms
 
@@ -172,7 +181,6 @@ def generate_candidates(research):
 
         unique_evidence = []
         seen_items = set()
-        seen_story_numbers = set()
 
         for item in evidence_items:
             link = item.get("link", "").strip()
@@ -185,12 +193,6 @@ def generate_candidates(research):
 
             seen_items.add(key)
 
-            numbers = _story_numbers(title_key)
-
-            if numbers and numbers & seen_story_numbers:
-                continue
-
-            seen_story_numbers.update(numbers)
             unique_evidence.append(item)
 
         evidence_items = unique_evidence
