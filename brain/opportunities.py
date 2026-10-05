@@ -1,6 +1,78 @@
 from collections import Counter
+import re
 
 from brain.research import collect_research
+
+
+def _story_numbers(title):
+    numbers = set()
+
+    for match in re.findall(r"\b\d[\d,]{3,}\b", title):
+        number = match.replace(",", "")
+
+        if number.startswith(("19", "20")):
+            continue
+
+        numbers.add(number)
+
+    return numbers
+
+
+_STORY_STOPWORDS = {
+    "the", "a", "an", "and", "or", "of", "to", "in", "on", "for",
+    "among", "this", "that", "with", "as", "by", "from", "most",
+    "first", "half", "year", "h1", "nigeria", "nigerian",
+    "receives", "tops", "hit", "issues", "persist",
+    "news", "week", "times",
+}
+
+
+def _story_terms(title):
+    words = re.findall(r"[A-Za-z][A-Za-z'-]{3,}", title.lower())
+
+    return {
+        word
+        for word in words
+        if word not in _STORY_STOPWORDS
+    }
+
+
+def _stories_related(left, right):
+    left_terms = _story_terms(left.get("title", ""))
+    right_terms = _story_terms(right.get("title", ""))
+
+    shared = left_terms & right_terms
+
+    important_terms = {
+        "airtel",
+        "ncc",
+        "fccpc",
+        "telecom",
+        "telecoms",
+        "413587",
+    }
+
+    important_shared = shared & important_terms
+
+    return len(important_shared) >= 2
+
+
+def _count_story_clusters(items):
+    clusters = []
+
+    for item in items:
+        placed = False
+
+        for cluster in clusters:
+            if any(_stories_related(item, existing) for existing in cluster):
+                cluster.append(item)
+                placed = True
+                break
+
+        if not placed:
+            clusters.append([item])
+
+    return len(clusters)
 
 
 PROBLEM_GROUPS = {
@@ -113,13 +185,7 @@ def generate_candidates(research):
 
             seen_items.add(key)
 
-            numbers = {
-                token.replace(",", "")
-                for token in title_key.replace("–", " ").replace("-", " ").split()
-                if token.replace(",", "").isdigit()
-                and len(token.replace(",", "")) >= 4
-                and not token.replace(",", "").startswith(("19", "20"))
-            }
+            numbers = _story_numbers(title_key)
 
             if numbers and numbers & seen_story_numbers:
                 continue
@@ -143,8 +209,10 @@ def generate_candidates(research):
 
         source_diversity = len(source_names)
 
+        story_clusters = _count_story_clusters(evidence_items)
+
         source_independence = (
-            source_diversity / evidence_count
+            story_clusters / evidence_count
             if evidence_count > 0
             else 0
         )
@@ -191,6 +259,7 @@ def generate_candidates(research):
             "signal": name,
             "evidence_count": evidence_count,
             "source_diversity": source_diversity,
+            "story_clusters": story_clusters,
             "source_independence": source_independence,
             "confidence": confidence,
             "matched_keywords": matched_keywords,

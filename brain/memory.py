@@ -57,24 +57,25 @@ def remember_opportunity(
         existing = db.execute("""
             SELECT id
             FROM opportunities
-            WHERE title = ?
-              AND problem = ?
+            WHERE problem = ?
             ORDER BY id ASC
             LIMIT 1
-        """, (title, problem)).fetchone()
+        """, (problem,)).fetchone()
 
         if existing:
             opportunity_id = existing[0]
 
             db.execute("""
                 UPDATE opportunities
-                SET solution = ?,
+                SET title = ?,
+                    solution = ?,
                     target_customer = ?,
                     revenue_potential = ?,
                     confidence = ?,
                     notes = ?
                 WHERE id = ?
             """, (
+                title,
                 solution,
                 target_customer,
                 revenue_potential,
