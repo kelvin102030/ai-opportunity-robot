@@ -336,6 +336,8 @@ button:disabled{
 
     <button id="start" onclick="runRobot()">🔎 Start Opportunity Discovery</button>
     <button onclick="loadStatus()">↻ Refresh Status</button>
+    <button onclick="speakRobot()">🔊 Speak</button>
+    <button onclick="stopSpeaking()">⏹️ Stop</button>
 </section>
 
 <section class="panel">
@@ -359,6 +361,42 @@ button:disabled{
 </main>
 
 <script>
+let lastSpokenResult = '';
+
+function speakText(text){
+    if(!("speechSynthesis" in window)){
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    window.speechSynthesis.speak(utterance);
+}
+
+function speakRobot(){
+    const message = document.getElementById('message').textContent;
+    const opportunity = document.getElementById('opportunity');
+
+    let text = message;
+
+    if(opportunity && !opportunity.classList.contains('hidden')){
+        text += '. ' + opportunity.innerText;
+    }
+
+    speakText(text);
+}
+
+function stopSpeaking(){
+    if("speechSynthesis" in window){
+        window.speechSynthesis.cancel();
+    }
+}
+
 async function loadStatus(){
     try{
         const response = await fetch('/api/status');
@@ -388,6 +426,14 @@ async function loadStatus(){
             document.getElementById('empty').classList.add('hidden');
             document.getElementById('loading').classList.add('hidden');
             renderOpportunity(data.result);
+
+            if(data.result !== lastSpokenResult){
+                lastSpokenResult = data.result;
+                speakText(
+                    'Research complete. ' +
+                    document.getElementById('opportunity').innerText
+                );
+            }
         }
     }catch(error){
         document.getElementById('message').textContent =
