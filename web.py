@@ -338,6 +338,7 @@ button:disabled{
     <button onclick="loadStatus()">↻ Refresh Status</button>
     <button onclick="speakRobot()">🔊 Speak</button>
     <button onclick="stopSpeaking()">⏹️ Stop</button>
+    <button id="listen" onclick="startListening()">🎙️ Listen</button>
 </section>
 
 <section class="panel">
@@ -362,6 +363,8 @@ button:disabled{
 
 <script>
 let lastSpokenResult = '';
+let lastSpokenMessage = '';
+let voiceEnabled = false;
 
 function speakText(text){
     if(!("speechSynthesis" in window)){
@@ -397,6 +400,87 @@ function stopSpeaking(){
     }
 }
 
+let recognition = null;
+
+function startListening(){
+    const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+
+    if(!SpeechRecognition){
+        const listenButton = document.getElementById("listen");
+        listenButton.textContent = "❌ Voice input unsupported";
+        speakText("Voice input is not supported by this browser.");
+        return;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    const listenButton = document.getElementById("listen");
+    listenButton.disabled = true;
+    listenButton.textContent = "🎙️ Listening...";
+
+    recognition.onresult = event => {
+        const command = event.results[0][0].transcript
+            .toLowerCase()
+            .trim();
+
+        handleVoiceCommand(command);
+    };
+
+    recognition.onerror = event => {
+        listenButton.disabled = false;
+        listenButton.textContent = "❌ " + event.error;
+    };
+
+    recognition.onend = () => {
+        listenButton.disabled = false;
+        listenButton.textContent = "🎙️ Listen";
+    };
+
+    try {
+        recognition.start();
+    } catch(error) {
+        listenButton.disabled = false;
+        listenButton.textContent = "❌ " + error.name;
+    }
+}
+
+function handleVoiceCommand(command){
+    if(
+        command.includes("start research") ||
+        command.includes("start discovery") ||
+        command.includes("find an opportunity") ||
+        command.includes("find opportunities")
+    ){
+        speakText("Starting opportunity discovery.");
+        runRobot();
+        return;
+    }
+
+    if(
+        command.includes("what did you find") ||
+        command.includes("what did you discover") ||
+        command.includes("tell me the opportunity")
+    ){
+        speakRobot();
+        return;
+    }
+
+    if(command.includes("stop speaking") || command.includes("be quiet")){
+        stopSpeaking();
+        return;
+    }
+
+    speakText(
+        "I heard you say " + command +
+        ". I do not know that command yet."
+    );
+}
+
 async function loadStatus(){
     try{
         const response = await fetch('/api/status');
@@ -416,6 +500,15 @@ async function loadStatus(){
 
         message.textContent = data.message;
         start.disabled = data.running;
+
+        if(
+            voiceEnabled &&
+            data.message &&
+            data.message !== lastSpokenMessage
+        ){
+            lastSpokenMessage = data.message;
+            speakText(data.message);
+        }
 
         if(data.running){
             document.getElementById('empty').classList.add('hidden');
@@ -549,6 +642,7 @@ function showEvidence(){
 }
 
 async function runRobot(){
+    voiceEnabled = true;
     document.getElementById('start').disabled = true;
 
     try{
