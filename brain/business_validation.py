@@ -492,30 +492,77 @@ def _score_build_feasibility(candidate):
 
 
 def _score_risk(items, candidate):
-    text = _text(items)
+    """
+    Estimate opportunity-specific business risk.
 
-    risk_terms = [
-        "regulation",
-        "regulatory",
-        "lawsuit",
-        "fraud",
-        "security",
-        "privacy",
-        "licence",
-        "license",
-        "government approval",
+    Generic mentions of words such as "regulation" or "security"
+    should not automatically make an opportunity high risk.
+    Risk is scored from stronger contextual signals instead.
+    """
+
+    high_risk_phrases = [
+        "licence required",
+        "license required",
+        "requires a licence",
+        "requires a license",
+        "government approval required",
+        "government approval is required",
+        "regulatory approval required",
+        "regulatory approval is required",
+        "regulated by",
+        "heavily regulated",
+        "subject to regulation",
+        "subject to regulatory",
+        "lawsuit against",
+        "legal action against",
+        "fraud risk",
+        "fraud risks",
+        "security breach",
+        "data breach",
+        "privacy breach",
+        "privacy law",
+        "data protection law",
+        "personal data regulation",
     ]
 
-    matches = sum(text.count(term) for term in risk_terms)
+    medium_risk_phrases = [
+        "regulatory requirements",
+        "regulatory compliance",
+        "compliance requirements",
+        "security requirements",
+        "privacy requirements",
+        "data protection requirements",
+        "licensing requirements",
+        "legal requirements",
+    ]
+
+    high_hits = 0
+    medium_hits = 0
+
+    for item in items:
+        text = (
+            f"{item.get('title', '')} "
+            f"{item.get('description', '')}"
+        ).lower()
+
+        if any(term in text for term in high_risk_phrases):
+            high_hits += 1
+
+        if any(term in text for term in medium_risk_phrases):
+            medium_hits += 1
 
     base_risk = 20
 
-    if matches >= 10:
+    if high_hits >= 5:
         base_risk = 70
-    elif matches >= 5:
+    elif high_hits >= 2:
         base_risk = 50
-    elif matches >= 2:
+    elif high_hits >= 1:
         base_risk = 35
+    elif medium_hits >= 5:
+        base_risk = 35
+    elif medium_hits >= 2:
+        base_risk = 30
 
     if candidate.get("signal") == "infrastructure":
         base_risk += 10

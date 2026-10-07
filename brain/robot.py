@@ -4,6 +4,8 @@ from brain.reasoning import analyze_candidate
 from brain.ranking import best_opportunity, explain_ranking
 from brain.memory import initialize_memory, remember_opportunity, remember_evidence, recall_evidence
 from brain.business_validation import validate_business_opportunity
+from brain.build_plan import create_build_plan
+from brain.build_approval import approve_mvp_build
 
 
 def run_robot():
@@ -241,6 +243,85 @@ def run_robot():
         else:
             print("No targeted research results found.")
             print()
+
+    print("MVP BUILD APPROVAL")
+    print("-------------------")
+
+    mvp_build_approval = approve_mvp_build(
+        business_validation
+    )
+
+    print("Build status:", mvp_build_approval["status"])
+    print()
+
+    print("BUILD APPROVAL CHECKS")
+    print("---------------------")
+    for check, passed in mvp_build_approval["checks"].items():
+        print(f"- {check}: {'PASS' if passed else 'FAIL'}")
+    print()
+
+    if mvp_build_approval["failed_checks"]:
+        print("FAILED BUILD CHECKS")
+        print("-------------------")
+        for check in mvp_build_approval["failed_checks"]:
+            print(f"- {check}")
+        print()
+    else:
+        print("All MVP build approval checks passed.")
+        print()
+
+    print("MVP BUILD PLAN")
+    print("--------------")
+
+    build_validation = dict(business_validation)
+
+    if mvp_build_approval["approved"]:
+        build_validation["recommendation"] = "MVP BUILD APPROVED"
+
+    build_plan = create_build_plan(
+        validation_candidate,
+        build_validation,
+    )
+
+    print("Build eligibility:", build_plan["build_eligibility"])
+    print("Product type:", build_plan["product_type"])
+    print()
+
+    print("MVP FEATURES")
+    print("------------")
+    for feature in build_plan["mvp_features"]:
+        print(f"- {feature}")
+    print()
+
+    print("SCREENS")
+    print("-------")
+    for screen in build_plan["screens"]:
+        print(f"- {screen}")
+    print()
+
+    print("USER FLOW")
+    print("---------")
+    for step in build_plan["user_flow"]:
+        print(f"- {step}")
+    print()
+
+    print("TECHNOLOGY")
+    print("----------")
+    for technology in build_plan["technology"]:
+        print(f"- {technology}")
+    print()
+
+    print("BUILD PHASES")
+    print("------------")
+    for phase in build_plan["build_phases"]:
+        print(f"- {phase}")
+    print()
+
+    print("PLAY STORE PREPARATION")
+    print("----------------------")
+    for item in build_plan["play_store_preparation"]:
+        print(f"- {item}")
+    print()
 
     print("NEXT VALIDATION ACTIONS")
     print("-----------------------")

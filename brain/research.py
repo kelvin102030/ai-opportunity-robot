@@ -5,11 +5,71 @@ import xml.etree.ElementTree as ET
 
 
 RESEARCH_QUERIES = [
+    # Problems and unmet needs
+    "problems people are struggling with",
+    "unmet needs consumers",
+    "unresolved customer problems",
+    "common problems businesses face",
+    "services people need but cannot find",
+    "frustrating everyday problems consumers",
+    "underserved customer needs",
+    "poorly served markets",
+    "problems existing products fail to solve",
+
+    # Emerging trends and behavior changes
+    "emerging consumer trends",
+    "new consumer behavior trends",
+    "rapidly growing online trends",
+    "new digital habits consumers",
+    "technology trends creating new markets",
+    "emerging business opportunities",
+    "new markets growing online",
+    "industries being disrupted by technology",
+
+    # Business opportunities
+    "new business opportunities online",
+    "profitable online business opportunities",
+    "small business opportunities emerging",
+    "software business opportunities",
+    "online services people pay for",
+    "businesses looking for software solutions",
+    "companies spending money on new software",
+    "businesses replacing manual processes",
+
+    # Existing solutions and weaknesses
+    "popular apps users complain about",
+    "software users want improved",
+    "customers unhappy with existing apps",
+    "alternatives to expensive software",
+    "manual processes businesses want automated",
+    "market gaps existing companies",
+    "customers switching from existing services",
+
+    # Monetization and willingness to pay
+    "customers willing to pay for solutions",
+    "businesses paying for digital services",
+    "subscription software market opportunities",
+    "services with recurring revenue",
+    "digital products people pay for",
+    "businesses spending money to solve problems",
+
+    # Market signals
+    "startup ideas based on real customer problems",
+    "new startups solving emerging problems",
+    "fast growing startups new markets",
+    "venture funding emerging industries",
+    "consumer demand growing rapidly",
+    "products with growing customer demand",
+
+    # Nigeria and African opportunities
     "problems Nigerians face",
     "business challenges Nigeria",
-    "customers complaints Nigeria",
-    "problems small businesses Nigeria",
     "services people need Nigeria",
+    "digital opportunities Nigeria",
+    "online business opportunities Nigeria",
+    "Nigerian consumers unmet needs",
+    "African consumer problems technology",
+    "African startups solving local problems",
 ]
 
 
