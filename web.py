@@ -658,6 +658,17 @@ function renderOpportunity(raw){
                 </p>
             </div>
 
+            <div class="section">
+                <h3>🛠️ Build Plan & Google Play Launch</h3>
+                <div class="raw">${escapeHtml(
+                    extractSection(
+                        raw,
+                        'MVP BUILD PLAN',
+                        'NEXT VALIDATION ACTIONS'
+                    ) || 'The robot did not return a build plan.'
+                )}</div>
+            </div>
+
             <button onclick="showEvidence()">📰 View Research Evidence</button>
             <a href="/history" style="display:inline-block;margin-top:10px;padding:10px 14px;border-radius:10px;background:#123047;color:#7dd3fc;text-decoration:none;">📚 View Opportunity History</a>
 
@@ -669,6 +680,26 @@ function renderOpportunity(raw){
         </div>
     `;
     document.getElementById('opportunity').classList.remove('hidden');
+}
+
+function extractSection(text, startLabel, endLabel){
+    const startIndex = text.indexOf(startLabel);
+    if(startIndex === -1) return '';
+
+    const titleEnd = text.indexOf('\n', startIndex);
+    if(titleEnd === -1) return '';
+
+    const underlineEnd = text.indexOf('\n', titleEnd + 1);
+    if(underlineEnd === -1) return '';
+
+    const contentStart = underlineEnd + 1;
+    const endIndex = text.indexOf(endLabel, contentStart);
+
+    return (
+        endIndex === -1
+            ? text.slice(contentStart)
+            : text.slice(contentStart, endIndex)
+    ).trim();
 }
 
 function showEvidence(){
