@@ -152,6 +152,7 @@ def run_robot():
         validation_candidate,
         candidates[best_index]["evidence_items"],
         commercial_research,
+        web_evidence=web_evidence,
     )
 
     print("Demand evidence:", f"{business_validation['demand']}/100")
@@ -214,6 +215,7 @@ def run_robot():
                 validation_candidate,
                 combined_research,
                 combined_commercial_research,
+                web_evidence=web_evidence,
             )
 
             print("RE-VALIDATION")

@@ -52,18 +52,13 @@ def _stories_related(left, right):
 
     shared = left_terms & right_terms
 
-    important_terms = {
-        "airtel",
-        "ncc",
-        "fccpc",
-        "telecom",
-        "telecoms",
-        "413587",
-    }
+    # Group likely duplicate coverage conservatively. Sharing a broad
+    # industry term is not enough to establish that two reports describe
+    # the same event.
+    union = left_terms | right_terms
+    similarity = len(shared) / len(union) if union else 0
 
-    important_shared = shared & important_terms
-
-    return len(important_shared) >= 2
+    return len(shared) >= 3 and similarity >= 0.50
 
 
 def _count_story_clusters(items):
@@ -312,12 +307,9 @@ def _build_candidate(name, theme, research):
     impact_score = theme["impact"]
     solution_potential = theme["solution_potential"]
 
-    opportunity_score = (
-        min(evidence_count, 10)
-        + min(source_diversity, 10)
-        + len(matched_keywords)
-        + impact_score
-        + solution_potential
+    opportunity_score = _research_support_score(
+        evidence_count,
+        source_independence,
     )
 
     if evidence_count >= 5 and source_independence >= 0.60:
@@ -374,13 +366,13 @@ _CONCEPT_STOPWORDS = {
 
 
 def _concept_terms(text):
-    words = re.findall(r"[A-Za-z][A-Za-z'-]{4,}", text.lower())
-
+    """Extract meaningful words without allowing search queries to dominate."""
+    words = re.findall(r"[A-Za-z][A-Za-z'-]{3,}", str(text).lower())
     return {
-        word
-        for word in words
+        word for word in words
         if word not in _CONCEPT_STOPWORDS
     }
+
 
 
 def _research_text(item):
@@ -392,19 +384,60 @@ def _research_text(item):
 
 
 def _research_similarity(left, right):
-    left_terms = _concept_terms(_research_text(left))
-    right_terms = _concept_terms(_research_text(right))
+    """Compare article content using shared terms and cautious topic signals."""
+    left_text = " ".join([
+        str(left.get("title", "") or ""),
+        str(left.get("description", "") or ""),
+    ]).strip()
+
+    right_text = " ".join([
+        str(right.get("title", "") or ""),
+        str(right.get("description", "") or ""),
+    ]).strip()
+
+    left_terms = _concept_terms(left_text)
+    right_terms = _concept_terms(right_text)
 
     if not left_terms or not right_terms:
         return 0
 
     shared = left_terms & right_terms
     union = left_terms | right_terms
+    jaccard = len(shared) / len(union) if union else 0
 
-    return len(shared) / max(
-        len(union),
-        1,
+    # A topic signal requires terms from both sides of a meaningful
+    # relationship. Broad industry words alone are insufficient.
+    related_term_groups = (
+        {"inventory", "inventories", "stock", "stocks"},
+        {"retailers", "retailer", "retail", "shops", "shop", "stores", "store"},
+        {"farmers", "farmer", "farming", "agriculture", "crops", "crop"},
+        {"patients", "patient", "clinics", "clinic", "hospitals", "hospital"},
+        {"waiting", "waits", "delays", "delay", "queues", "queue"},
+        {"staffing", "staff", "understaffed", "shortages", "shortage", "appointments", "appointment"},
+        {"payments", "payment", "transactions", "transaction"},
+        {"delivery", "deliveries", "logistics", "shipping"},
+        {"electricity", "power", "energy", "outages"},
     )
+
+    related_groups = sum(
+        1
+        for group in related_term_groups
+        if left_terms & group and right_terms & group
+    )
+
+    # Strong lexical overlap remains the primary matching method.
+    if len(shared) >= 2:
+        return max(jaccard, 0.26 if related_groups else 0)
+
+    # Permit a modest topic match only when multiple independent
+    # topic relationships are present in both articles.
+    if related_groups >= 2:
+        return max(jaccard, 0.26)
+
+    return jaccard
+
+
+
 
 
 def _cluster_research(research, minimum_similarity=0.30):
@@ -430,65 +463,99 @@ def _cluster_research(research, minimum_similarity=0.30):
 
 
 def _concept_name(cluster):
+    """Name a research cluster from article titles, not discovery queries."""
     counts = Counter()
+    title_counts = Counter()
 
     for item in cluster:
-        text = _research_text(item)
+        title = str(item.get("title", "") or "").strip()
+        description = str(item.get("description", "") or "").strip()
 
-        for term in _concept_terms(text):
+        # Titles are the primary signal for naming a concrete topic.
+        title_counts.update(_concept_terms(title))
+
+        # Descriptions can support a title term but cannot introduce a
+        # completely unrelated name by themselves.
+        description_terms = _concept_terms(description)
+        for term in _concept_terms(title):
+            counts[term] += 2
+        for term in description_terms:
             counts[term] += 1
 
     common_terms = [
         term
-        for term, count in counts.most_common(8)
+        for term, count in title_counts.most_common(10)
         if count >= 2
     ]
 
-    if not common_terms:
-        common_terms = [
-            term
-            for term, count in counts.most_common(5)
-        ]
+    if common_terms:
+        return " ".join(word.capitalize() for word in common_terms[:4])
 
-    if not common_terms:
-        return "Emerging market opportunity"
+    # For a small cluster, use distinctive title terms rather than
+    # inventing an "Emerging market opportunity" name.
+    fallback = [
+        term
+        for term, count in counts.most_common(6)
+        if count >= 2
+    ]
 
-    return " ".join(word.capitalize() for word in common_terms[:4])
+    if fallback:
+        return " ".join(word.capitalize() for word in fallback[:4])
+
+    return "Research topic requiring clarification"
+
 
 
 def _concept_problem(cluster):
-    titles = [
-        item.get("title", "").strip()
-        for item in cluster
-        if item.get("title", "").strip()
-    ]
+    """Describe the topic cautiously using evidence titles, not query text."""
+    titles = []
+    seen = set()
+
+    for item in cluster:
+        title = str(item.get("title", "") or "").strip()
+        key = title.casefold()
+
+        if title and key not in seen:
+            seen.add(key)
+            titles.append(title)
 
     if not titles:
         return (
-            "Multiple research signals indicate a recurring unmet need "
-            "that may support a better solution."
+            "A research topic has been identified, but the customer problem "
+            "still needs to be established."
+        )
+
+    if len(titles) == 1:
+        return (
+            "Research topic identified: "
+            + titles[0]
+            + ". Confirm the affected Nigerian customers, the severity of "
+              "the problem, and whether they will pay for a solution."
         )
 
     return (
-        "Research repeatedly points to a problem or unmet need around: "
+        "Related research reports discuss: "
         + "; ".join(titles[:3])
-        + "."
+        + ". Verify that these reports describe the same underlying problem "
+          "before treating them as one business opportunity."
     )
+
+
+
+def _research_support_score(evidence_count, source_independence):
+    """Comparable 0-100 score for research support, not profitability."""
+    evidence_count = max(0, int(evidence_count or 0))
+    independence = float(source_independence or 0)
+    independence = max(0.0, min(independence, 1.0))
+    evidence_coverage = min(evidence_count / 5.0, 1.0)
+    return round(evidence_coverage * 60 + independence * 40)
 
 
 def _concept_evidence_score(cluster):
     evidence_count = len(cluster)
-
-    sources = {
-        item.get("source", "").strip().lower()
-        for item in cluster
-        if item.get("source", "").strip()
-    }
-
-    return (
-        min(evidence_count, 10)
-        + min(len(sources), 10)
-    )
+    story_clusters = _count_story_clusters(cluster)
+    independence = story_clusters / evidence_count if evidence_count else 0
+    return _research_support_score(evidence_count, independence)
 
 
 def generate_concrete_opportunities(research, max_candidates=20):
@@ -501,7 +568,7 @@ def generate_concrete_opportunities(research, max_candidates=20):
     if not research:
         return []
 
-    clusters = _cluster_research(research)
+    clusters = _cluster_research(research, minimum_similarity=0.25)
 
     opportunities = []
 
@@ -542,7 +609,7 @@ def generate_concrete_opportunities(research, max_candidates=20):
             "evidence_items": cluster,
             "matched_keywords": [],
             "source_independence": (
-                len(sources) / len(cluster)
+                _count_story_clusters(cluster) / len(cluster)
                 if cluster
                 else 0
             ),
@@ -568,6 +635,11 @@ def generate_candidates(research):
 
         if candidate is not None:
             candidates.append(candidate)
+
+    # Add research clusters as specific opportunity candidates.
+    # Keep the existing theme-based candidates and their data unchanged.
+    concrete_candidates = generate_concrete_opportunities(research)
+    candidates.extend(concrete_candidates)
 
     return sorted(
         candidates,

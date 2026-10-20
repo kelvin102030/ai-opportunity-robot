@@ -47,8 +47,8 @@ def generate_idea(candidate):
         "source_diversity": candidate["source_diversity"],
         "source_independence": candidate["source_independence"],
         "confidence": candidate["confidence"],
-        "impact_score": candidate["impact_score"],
-        "solution_potential": candidate["solution_potential"],
+        "impact_score": candidate.get("impact_score", 0),
+        "solution_potential": candidate.get("solution_potential", 0),
         "matched_keywords": candidate["matched_keywords"],
     }
 

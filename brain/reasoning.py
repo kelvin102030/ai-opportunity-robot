@@ -166,37 +166,23 @@ def _infer_revenue(candidate):
 
 
 def _calculate_confidence(candidate):
-    evidence = candidate.get("evidence_count", 0)
-    independence = candidate.get("source_independence", 0)
-    impact = candidate.get("impact_score", 0)
-    solution_potential = candidate.get("solution_potential", 0)
+    """Measure research support, not commercial profitability."""
+    evidence = max(0, int(candidate.get("evidence_count", 0) or 0))
+    independence = float(candidate.get("source_independence", 0) or 0)
+    independence = max(0.0, min(independence, 1.0))
+    evidence_coverage = min(evidence / 5.0, 1.0)
+    return round(evidence_coverage * 0.60 + independence * 0.40, 2)
 
-    evidence_score = min(evidence / 5, 1.0)
-
-    confidence = (
-        evidence_score * 0.35
-        + independence * 0.20
-        + (impact / 5) * 0.20
-        + (solution_potential / 5) * 0.25
-    )
-
-    return round(min(confidence, 1.0), 2)
 
 
 def _calculate_opportunity_score(candidate):
-    evidence = min(candidate.get("evidence_count", 0), 5)
-    independence = candidate.get("source_independence", 0)
-    impact = candidate.get("impact_score", 0)
-    solution_potential = candidate.get("solution_potential", 0)
+    """Return a comparable 0-100 research-support score."""
+    evidence = max(0, int(candidate.get("evidence_count", 0) or 0))
+    independence = float(candidate.get("source_independence", 0) or 0)
+    independence = max(0.0, min(independence, 1.0))
+    evidence_coverage = min(evidence / 5.0, 1.0)
+    return round(evidence_coverage * 60 + independence * 40)
 
-    score = (
-        evidence * 4
-        + independence * 10
-        + impact * 5
-        + solution_potential * 5
-    )
-
-    return round(score)
 
 
 def analyze_candidate(candidate):
@@ -216,7 +202,14 @@ def analyze_candidate(candidate):
 
     # Avoid presenting a broad catch-all category as if it were a concrete business.
     # Use research-derived language for the display title and make the status explicit.
-    if signal == "emerging_market":
+    if signal == "research_concept":
+        concept = str(candidate.get("concept", "")).strip()
+        title = (
+            f"Opportunity candidate: {concept[:100]}"
+            if concept
+            else "Unvalidated research-backed opportunity"
+        )
+    elif signal == "emerging_market":
         evidence_items = candidate.get("evidence_items", [])
         evidence_titles = [
             str(item.get("title", "")).strip()

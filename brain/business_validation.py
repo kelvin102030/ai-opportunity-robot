@@ -77,6 +77,52 @@ def _commercial_relevance(item, candidate):
     )
 
 
+def _candidate_relevance(item, candidate):
+    """Require topic-specific overlap before research affects core scores."""
+    text = (
+        f"{item.get('title', '')} "
+        f"{item.get('description', '')}"
+    ).lower()
+
+    candidate_text = " ".join(
+        str(candidate.get(field) or "")
+        for field in ("problem", "target_customer", "solution")
+    ).lower()
+
+    ignored = {
+        "about", "after", "again", "based", "being", "caused",
+        "could", "from", "have", "into", "more", "other", "their",
+        "there", "these", "those", "using", "which", "while",
+        "where", "would", "your", "software", "platform", "system",
+        "solution", "service", "mobile", "online", "application",
+    }
+
+    def normalize(word):
+        if len(word) > 4 and word.endswith("s"):
+            return word[:-1]
+        return word
+
+    candidate_words = {
+        normalize(word)
+        for word in re.findall(r"[a-zA-Z]+", candidate_text)
+        if len(word) >= 5 and word not in ignored
+    }
+    evidence_words = {
+        normalize(word)
+        for word in re.findall(r"[a-zA-Z]+", text)
+    }
+
+    if not candidate_words:
+        return False
+
+    matches = candidate_words & evidence_words
+
+    # A single topic term is acceptable only when the candidate has
+    # just one meaningful term; otherwise require two matching terms.
+    required_matches = 2 if len(candidate_words) >= 2 else 1
+    return len(matches) >= required_matches
+
+
 def _filter_commercial_research(items, candidate):
     return [
         item
@@ -86,12 +132,17 @@ def _filter_commercial_research(items, candidate):
 
 
 def _web_evidence_type(page):
-    text = page.get("text", "").lower()
+    """Classify page text into separate commercial research signals.
+
+    These are text signals, not independent verification of transactions.
+    """
+    text = str(page.get("text", "") or "").lower()
 
     evidence = {
         "vendor": False,
         "pricing": False,
         "payment": False,
+        "willingness_to_pay": False,
         "competition": False,
         "unmet_need": False,
     }
@@ -109,23 +160,29 @@ def _web_evidence_type(page):
     ]
 
     pricing_terms = [
-        "pricing",
-        "price",
-        "per month",
-        "per year",
-        "monthly",
-        "annual",
-        "subscription",
-        "plan",
-        "starts at",
-        "from $",
-        "from ₦",
+        "pricing", "price", "per month", "per year",
+        "monthly", "annual", "subscription", "plan",
+        "starts at", "from $", "from ₦",
     ]
 
-    payment_terms = [
+    # Explicit statements about hypothetical future payment are not
+    # evidence that a transaction has occurred.
+    willingness_terms = [
         "willing to pay",
         "willingness to pay",
         "would pay",
+        "might pay",
+        "intend to pay",
+        "intention to pay",
+        "likely to pay",
+        "prepared to pay",
+        "stated they would pay",
+        "said they would pay",
+    ]
+
+    # These phrases are claims of existing commercial activity.
+    # Their presence still does not independently verify a transaction.
+    actual_payment_terms = [
         "paying customers",
         "customers pay for",
         "customers are paying",
@@ -138,31 +195,62 @@ def _web_evidence_type(page):
         "company purchased",
         "companies purchased",
         "signed a contract",
+        "signed contracts",
         "won a contract",
         "contract awarded",
         "paid subscription",
+        "paid subscriptions",
         "paying subscriber",
         "paying subscribers",
+        "completed a purchase",
+        "completed purchases",
+        "generated paid sales",
+        "revenue from sales",
+        "reported revenue",
     ]
 
     unmet_need_terms = [
-        "complaint",
-        "complaints",
-        "poor service",
-        "unresolved",
-        "frustrated",
-        "problem",
-        "problems",
-        "challenge",
-        "challenges",
-        "lack of",
-        "dissatisfied",
+        "complaint", "complaints", "poor service",
+        "unresolved", "frustrated", "problem", "problems",
+        "challenge", "challenges", "lack of", "dissatisfied",
     ]
 
     evidence["vendor"] = any(term in text for term in vendor_terms)
-    evidence["pricing"] = any(term in text for term in pricing_terms)
-    evidence["payment"] = any(term in text for term in payment_terms)
-    evidence["competition"] = evidence["vendor"]
+    evidence["pricing"] = (
+        any(term in text for term in pricing_terms)
+        or bool(re.search(r"₦\\s?[0-9][0-9,]*(?:\\.\\d+)?", text))
+        or bool(re.search(r"\\$\\s?[0-9][0-9,]*(?:\\.\\d+)?", text))
+    )
+    evidence["willingness_to_pay"] = any(
+        term in text for term in willingness_terms
+    )
+    evidence["payment"] = any(
+        term in text for term in actual_payment_terms
+    )
+    # A vendor page is not automatically evidence of competition.
+    # Look for explicit references to competitors or alternatives.
+    competition_terms = [
+        "competitor",
+        "competitors",
+        "alternative",
+        "alternatives",
+        "competing product",
+        "competing products",
+        "competing platform",
+        "competing platforms",
+        "rival",
+        "rivals",
+        "market leader",
+        "existing platform",
+        "other providers",
+        "other provider",
+        "similar products",
+        "similar services",
+    ]
+
+    evidence["competition"] = any(
+        term in text for term in competition_terms
+    )
     evidence["unmet_need"] = any(
         term in text for term in unmet_need_terms
     )
@@ -171,10 +259,12 @@ def _web_evidence_type(page):
 
 
 def _commercial_evidence_breakdown(items):
-    payment_terms = [
-        "willing to pay",
-        "willingness to pay",
-        "would pay",
+    """Count distinct research items containing commercial evidence signals.
+
+    Payment evidence means a source claims actual commercial activity.
+    It is not proof that the claim is accurate or independently verified.
+    """
+    actual_payment_terms = [
         "paying customers",
         "customers pay for",
         "customers are paying",
@@ -182,6 +272,36 @@ def _commercial_evidence_breakdown(items):
         "businesses are paying",
         "companies pay for",
         "companies are paying",
+        "customer purchased",
+        "customers purchased",
+        "company purchased",
+        "companies purchased",
+        "signed a contract",
+        "signed contracts",
+        "won a contract",
+        "contract awarded",
+        "paid subscription",
+        "paid subscriptions",
+        "paying subscriber",
+        "paying subscribers",
+        "completed a purchase",
+        "completed purchases",
+        "generated paid sales",
+        "revenue from sales",
+        "reported revenue",
+    ]
+
+    willingness_terms = [
+        "willing to pay",
+        "willingness to pay",
+        "would pay",
+        "might pay",
+        "intend to pay",
+        "intention to pay",
+        "likely to pay",
+        "prepared to pay",
+        "stated they would pay",
+        "said they would pay",
     ]
 
     pricing_terms = [
@@ -202,6 +322,7 @@ def _commercial_evidence_breakdown(items):
         "competitor",
         "competitors",
         "alternative",
+        "alternatives",
         "competing",
         "rival",
         "rivals",
@@ -228,6 +349,7 @@ def _commercial_evidence_breakdown(items):
 
     breakdown = {
         "payment_evidence": 0,
+        "willingness_to_pay_evidence": 0,
         "pricing_evidence": 0,
         "competition_evidence": 0,
         "unmet_need_evidence": 0,
@@ -241,47 +363,30 @@ def _commercial_evidence_breakdown(items):
 
         validation_type = item.get("validation_type")
 
-        # Typed targeted research gets strict evidence routing.
-        if validation_type == "commercial":
-            if any(term in text for term in payment_terms):
-                breakdown["payment_evidence"] += 1
-
-            if (
-                any(term in text for term in pricing_terms)
-                or re.search(r"₦\s?[0-9][0-9,]*(?:\.\d+)?", text)
-                or re.search(r"\$\s?[0-9][0-9,]*(?:\.\d+)?", text)
-            ):
-                breakdown["pricing_evidence"] += 1
-
-            if any(term in text for term in competition_terms):
-                breakdown["competition_evidence"] += 1
-
-        elif validation_type == "demand":
+        # Demand-only research must not establish payment or pricing.
+        if validation_type == "demand":
             if any(term in text for term in unmet_need_terms):
                 breakdown["unmet_need_evidence"] += 1
+            continue
 
-        elif validation_type == "customer":
-            # Customer/buyer research can support payment evidence only
-            # when the result explicitly mentions actual payment.
-            if any(term in text for term in payment_terms):
-                breakdown["payment_evidence"] += 1
+        if any(term in text for term in actual_payment_terms):
+            breakdown["payment_evidence"] += 1
 
-        else:
-            # Preserve compatibility with existing commercial research
-            # that predates validation_type metadata.
-            if any(term in text for term in payment_terms):
-                breakdown["payment_evidence"] += 1
+        if any(term in text for term in willingness_terms):
+            breakdown["willingness_to_pay_evidence"] += 1
 
-            if (
-                any(term in text for term in pricing_terms)
-                or re.search(r"₦\s?[0-9][0-9,]*(?:\.\d+)?", text)
-                or re.search(r"\$\s?[0-9][0-9,]*(?:\.\d+)?", text)
-            ):
-                breakdown["pricing_evidence"] += 1
+        if (
+            any(term in text for term in pricing_terms)
+            or re.search(r"₦\\s?[0-9][0-9,]*(?:\\.\\d+)?", text)
+            or re.search(r"\\$\\s?[0-9][0-9,]*(?:\\.\\d+)?", text)
+        ):
+            breakdown["pricing_evidence"] += 1
 
-            if any(term in text for term in competition_terms):
-                breakdown["competition_evidence"] += 1
+        if any(term in text for term in competition_terms):
+            breakdown["competition_evidence"] += 1
 
+        # Untyped results may include both commercial and problem signals.
+        if validation_type not in ("commercial", "customer"):
             if any(term in text for term in unmet_need_terms):
                 breakdown["unmet_need_evidence"] += 1
 
@@ -371,13 +476,15 @@ def _score_customer(items, candidate):
 
 
 def _score_revenue(items):
+    """Conservative revenue-potential score from textual research signals.
+
+    This is not a profit forecast. Willingness to pay and published prices
+    alone cannot establish that customers have actually paid.
+    """
     if not items:
         return 0
 
-    strong_terms = [
-        "willing to pay",
-        "willingness to pay",
-        "would pay",
+    actual_payment_terms = [
         "paying customers",
         "customers pay for",
         "customers are paying",
@@ -385,6 +492,36 @@ def _score_revenue(items):
         "businesses are paying",
         "companies pay for",
         "companies are paying",
+        "customer purchased",
+        "customers purchased",
+        "company purchased",
+        "companies purchased",
+        "signed a contract",
+        "signed contracts",
+        "won a contract",
+        "contract awarded",
+        "paid subscription",
+        "paid subscriptions",
+        "paying subscriber",
+        "paying subscribers",
+        "completed a purchase",
+        "completed purchases",
+        "generated paid sales",
+        "revenue from sales",
+        "reported revenue",
+    ]
+
+    willingness_terms = [
+        "willing to pay",
+        "willingness to pay",
+        "would pay",
+        "might pay",
+        "intend to pay",
+        "intention to pay",
+        "likely to pay",
+        "prepared to pay",
+        "stated they would pay",
+        "said they would pay",
     ]
 
     pricing_terms = [
@@ -402,12 +539,13 @@ def _score_revenue(items):
     ]
 
     pricing_patterns = [
-        r"₦\s?[0-9][0-9,]*(?:\.\d+)?",
-        r"\$\s?[0-9][0-9,]*(?:\.\d+)?",
-        r"\b[0-9][0-9,]*\s?(?:naira|dollars)\b",
+        r"₦\\s?[0-9][0-9,]*(?:\\.\\d+)?",
+        r"\\$\\s?[0-9][0-9,]*(?:\\.\\d+)?",
+        r"\\b[0-9][0-9,]*\\s?(?:naira|dollars)\\b",
     ]
 
-    strong_hits = 0
+    payment_hits = 0
+    willingness_hits = 0
     pricing_hits = 0
 
     for item in items:
@@ -416,8 +554,11 @@ def _score_revenue(items):
             f"{item.get('description', '')}"
         ).lower()
 
-        if any(term in text for term in strong_terms):
-            strong_hits += 1
+        if any(term in text for term in actual_payment_terms):
+            payment_hits += 1
+
+        if any(term in text for term in willingness_terms):
+            willingness_hits += 1
 
         if (
             any(term in text for term in pricing_terms)
@@ -425,21 +566,29 @@ def _score_revenue(items):
         ):
             pricing_hits += 1
 
-    if strong_hits >= 3:
-        return 100
-    if strong_hits == 2:
-        return 85
-    if strong_hits == 1:
-        return 70
+    # Reported commercial activity is a stronger signal, but remains
+    # an unverified claim until independently checked.
+    if payment_hits >= 3:
+        return 75
+    if payment_hits == 2:
+        return 65
+    if payment_hits == 1:
+        return 55
 
-    if pricing_hits >= 5:
-        return 60
-    if pricing_hits >= 3:
+    # Surveys and hypothetical intent are weaker than actual purchases.
+    if willingness_hits >= 3:
         return 45
-    if pricing_hits >= 1:
+    if willingness_hits >= 1:
         return 30
 
-    return 10
+    # Published prices prove that a price is quoted, not that buyers exist.
+    if pricing_hits >= 3:
+        return 25
+    if pricing_hits >= 1:
+        return 15
+
+    return 5
+
 
 def _score_competition(items):
     if not items:
@@ -570,12 +719,143 @@ def _score_risk(items, candidate):
     return min(base_risk, 100)
 
 
+
+def _article_matches_candidate(page, candidate):
+    """Return True when article text contains multiple candidate-specific terms."""
+    import re
+
+    text = str(page.get("text", "")).lower()
+    if not text:
+        return False
+
+    fields = (
+        "title",
+        "problem",
+        "signal",
+        "target_customer",
+        "solution",
+    )
+
+    stop_words = {
+        "about", "after", "again", "also", "among", "because",
+        "being", "could", "their", "there", "these", "those",
+        "through", "under", "using", "where", "which", "while",
+        "would", "should", "business", "businesses", "customer",
+        "customers", "nigerian", "nigeria", "people", "market",
+        "solution", "service", "services", "problem", "problems",
+        "reducing", "reduce", "improve", "improving",
+    }
+
+    terms = set()
+
+    for field in fields:
+        value = candidate.get(field, "")
+        if isinstance(value, str):
+            terms.update(
+                word.lower()
+                for word in re.findall(r"[a-zA-Z]{4,}", value)
+                if word.lower() not in stop_words
+            )
+
+    matches = {
+        term for term in terms
+        if term in text
+    }
+
+    # Require more than a broad market or industry mention.
+    return len(matches) >= 2
+
+
+def _score_article_demand(web_pages, candidate):
+    """Estimate problem-signal strength from relevant article text.
+
+    This is a research signal, not proof of market size or profitability.
+    Duplicate article URLs count only once.
+    """
+    import re
+
+    strong_terms = (
+        "repeated complaints",
+        "customers struggle",
+        "businesses struggle",
+        "unmet demand",
+        "recurring problem",
+        "mounting costs",
+        "rising costs",
+        "high operating costs",
+        "unreliable electricity",
+        "repeated failures",
+    )
+
+    medium_terms = (
+        "complaint",
+        "complaints",
+        "problem",
+        "problems",
+        "challenge",
+        "challenges",
+        "difficulty",
+        "difficulties",
+        "shortage",
+        "expensive",
+        "unreliable",
+        "high cost",
+        "high costs",
+        "rising prices",
+        "operating costs",
+        "maintenance costs",
+        "struggle",
+        "struggling",
+        "pressure",
+        "unmet need",
+    )
+
+    seen = set()
+    score = 0
+
+    for page in web_pages or []:
+        text = str(page.get("text", "")).lower().strip()
+
+        if len(text) < 300:
+            continue
+
+        if not _article_matches_candidate(page, candidate):
+            continue
+
+        identity = (
+            page.get("url")
+            or page.get("link")
+            or page.get("title")
+            or str(hash(text[:500]))
+        )
+
+        if identity in seen:
+            continue
+
+        seen.add(identity)
+
+        strong_hits = sum(term in text for term in strong_terms)
+        medium_hits = sum(term in text for term in medium_terms)
+
+        if strong_hits:
+            score += 20
+        elif medium_hits:
+            score += 12
+
+    return min(100, score)
+
+
 def validate_business_opportunity(
     candidate,
     research,
     commercial_research=None,
+    web_evidence=None,
 ):
     items = _unique_research(research)
+    relevant_items = [
+        item for item in items
+        if _candidate_relevance(item, candidate)
+    ]
 
     commercial_raw = commercial_research or []
     commercial_items = _unique_research(commercial_raw)
@@ -584,15 +864,78 @@ def validate_business_opportunity(
         candidate,
     )
 
-    demand = _score_demand(items)
-    customer = _score_customer(items, candidate)
+    snippet_demand = _score_demand(relevant_items)
+    article_demand = _score_article_demand(
+        web_evidence or [],
+        candidate,
+    )
+    demand = max(snippet_demand, article_demand)
+    customer = _score_customer(relevant_items, candidate)
     revenue = _score_revenue(commercial_items)
     competition = _score_competition(commercial_items)
     feasibility = _score_build_feasibility(candidate)
-    risk = _score_risk(items + commercial_items, candidate)
+    risk = _score_risk(relevant_items + commercial_items, candidate)
     evidence_breakdown = _commercial_evidence_breakdown(
         commercial_items
     )
+
+    # Analyse retrieved article text separately from search snippets.
+    # A page can support several categories, but counts only once per
+    # category. These are keyword signals, not proof of willingness to pay.
+    web_pages = web_evidence or []
+    web_evidence_breakdown = {
+        "payment_evidence": 0,
+        "willingness_to_pay_evidence": 0,
+        "pricing_evidence": 0,
+        "competition_evidence": 0,
+        "unmet_need_evidence": 0,
+        "vendor_evidence": 0,
+        "pages_analysed": 0,
+    }
+
+    for page in web_pages:
+        if not page.get("text", "").strip():
+            continue
+
+        signals = _web_evidence_type(page)
+        web_evidence_breakdown["pages_analysed"] += 1
+
+        # Only use page signals for the opportunity when the page contains
+        # sufficient topic overlap. Keyword matches alone are not proof
+        # of actual sales, demand, or market success.
+        page_relevant = _article_matches_candidate(page, candidate)
+
+        if page_relevant and signals["payment"]:
+            web_evidence_breakdown["payment_evidence"] += 1
+
+        if page_relevant and signals["willingness_to_pay"]:
+            web_evidence_breakdown["willingness_to_pay_evidence"] += 1
+
+        if page_relevant and signals["pricing"]:
+            web_evidence_breakdown["pricing_evidence"] += 1
+
+        if page_relevant and signals["competition"]:
+            web_evidence_breakdown["competition_evidence"] += 1
+
+        if page_relevant and signals["unmet_need"]:
+            web_evidence_breakdown["unmet_need_evidence"] += 1
+
+        if page_relevant and signals["vendor"]:
+            web_evidence_breakdown["vendor_evidence"] += 1
+
+    # Merge each category without adding web counts to search-result counts.
+    # Keep the separate web breakdown so every signal remains auditable.
+    for key in (
+        "payment_evidence",
+        "willingness_to_pay_evidence",
+        "pricing_evidence",
+        "competition_evidence",
+        "unmet_need_evidence",
+    ):
+        evidence_breakdown[key] = max(
+            evidence_breakdown[key],
+            web_evidence_breakdown[key],
+        )
 
     readiness = (
         demand * 0.25
@@ -662,8 +1005,9 @@ def validate_business_opportunity(
 
     if evidence_breakdown["payment_evidence"] < 1:
         validation_gaps.append(
-            "Find direct evidence that customers or businesses are paying "
-            "for related solutions."
+            "Find credible reports of actual purchases, paying customers, "
+            "or awarded paid contracts. Willingness-to-pay statements and "
+            "published prices alone do not establish actual payment."
         )
 
     if evidence_breakdown["pricing_evidence"] < 1:
@@ -687,6 +1031,8 @@ def validate_business_opportunity(
             "No major validation gaps detected; proceed to the next validation stage."
         )
 
+    evidence_breakdown.setdefault("willingness_to_pay_evidence", 0)
+
     return {
         "demand": demand,
         "customer": customer,
@@ -697,6 +1043,7 @@ def validate_business_opportunity(
         "readiness": readiness,
         "recommendation": recommendation,
         "evidence_breakdown": evidence_breakdown,
+        "web_evidence_breakdown": web_evidence_breakdown,
         "validation_gaps": validation_gaps,
         "research_status": research_status,
         "research_count": len(items),
