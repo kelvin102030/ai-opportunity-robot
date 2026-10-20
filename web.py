@@ -659,7 +659,18 @@ function renderOpportunity(raw){
             </div>
 
             <div class="section">
-                <h3>🛠️ Build Plan & Google Play Launch</h3>
+                <div class="section">
+      <h3>💼 Business Plan</h3>
+      <div class="raw">${escapeHtml(
+          extractSection(
+              raw,
+              'BUSINESS PLAN',
+              'MVP BUILD APPROVAL'
+          ) || 'No business plan was generated for this run.'
+      )}</div>
+    </div>
+
+    <h3>🛠️ Build Plan & Google Play Launch</h3>
                 <div class="raw">${escapeHtml(
                     extractSection(
                         raw,

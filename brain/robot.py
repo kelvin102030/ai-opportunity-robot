@@ -6,6 +6,7 @@ from brain.memory import initialize_memory, remember_opportunity, remember_evide
 from brain.business_validation import validate_business_opportunity
 from brain.build_plan import create_build_plan
 from brain.build_approval import approve_mvp_build
+from brain.business_plan import generate_business_plan, format_business_plan
 
 
 def run_robot():
@@ -25,7 +26,10 @@ def run_robot():
     print()
 
     if not candidates:
-        print("No opportunity candidates found.")
+        print("NO VALIDATED OPPORTUNITY")
+        print("=========================")
+        print("The research did not produce enough relevant evidence to rank a specific business opportunity.")
+        print("No business plan has been presented as validated. Retry research or broaden the research queries.")
         return
 
     analyses = []
@@ -243,6 +247,20 @@ def run_robot():
         else:
             print("No targeted research results found.")
             print()
+
+    print("BUSINESS PLAN")
+    print("-------------")
+    plan_idea = {
+        "signal": candidates[best_index]["signal"],
+        "problem": best.problem,
+        "target_customer": best.target_customer,
+        "solution": best.solution,
+        "evidence_count": best.evidence_count,
+        "confidence": best.confidence,
+    }
+    business_plan = generate_business_plan(plan_idea)
+    print(format_business_plan(business_plan))
+    print()
 
     print("MVP BUILD APPROVAL")
     print("-------------------")

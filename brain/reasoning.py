@@ -214,8 +214,24 @@ def analyze_candidate(candidate):
     confidence = _calculate_confidence(candidate)
     opportunity_score = _calculate_opportunity_score(candidate)
 
+    # Avoid presenting a broad catch-all category as if it were a concrete business.
+    # Use research-derived language for the display title and make the status explicit.
+    if signal == "emerging_market":
+        evidence_items = candidate.get("evidence_items", [])
+        evidence_titles = [
+            str(item.get("title", "")).strip()
+            for item in evidence_items
+            if str(item.get("title", "")).strip()
+        ]
+        if evidence_titles:
+            title = "Research lead: " + evidence_titles[0][:90]
+        else:
+            title = "Unvalidated research lead"
+    else:
+        title = f"Opportunity: {_title_from_signal(signal)}"
+
     return OpportunityAnalysis(
-        title=f"Opportunity: {_title_from_signal(signal)}",
+        title=title,
         problem=problem,
         target_customer=target_customer,
         solution=solution,
