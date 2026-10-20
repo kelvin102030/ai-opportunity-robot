@@ -686,10 +686,10 @@ function extractSection(text, startLabel, endLabel){
     const startIndex = text.indexOf(startLabel);
     if(startIndex === -1) return '';
 
-    const titleEnd = text.indexOf('\n', startIndex);
+    const titleEnd = text.indexOf('\\n', startIndex);
     if(titleEnd === -1) return '';
 
-    const underlineEnd = text.indexOf('\n', titleEnd + 1);
+    const underlineEnd = text.indexOf('\\n', titleEnd + 1);
     if(underlineEnd === -1) return '';
 
     const contentStart = underlineEnd + 1;
