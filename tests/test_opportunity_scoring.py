@@ -252,3 +252,65 @@ class BusinessValidationEvidenceTests(unittest.TestCase):
 
         self.assertTrue(result["willingness_to_pay"])
         self.assertFalse(result["competition"])
+
+class ApprovalInputSafetyTests(unittest.TestCase):
+
+    def setUp(self):
+        self.valid = {
+            "recommendation": "READY FOR MVP VALIDATION",
+            "demand": 80,
+            "customer": 80,
+            "revenue": 80,
+            "competition": 80,
+            "build_feasibility": 80,
+            "risk": 20,
+            "readiness": 80,
+            "evidence_breakdown": {
+                "payment_evidence": 1,
+                "pricing_evidence": 1,
+                "competition_evidence": 1,
+                "unmet_need_evidence": 2,
+            },
+        }
+
+    def test_valid_input_still_approves(self):
+        self.assertTrue(approve_mvp_build(self.valid)["approved"])
+
+    def test_text_score_fails_closed(self):
+        validation = {**self.valid, "demand": "unknown"}
+        result = approve_mvp_build(validation)
+        self.assertFalse(result["approved"])
+        self.assertIn("demand", result["failed_checks"])
+
+    def test_none_score_fails_closed(self):
+        validation = {**self.valid, "revenue": None}
+        result = approve_mvp_build(validation)
+        self.assertFalse(result["approved"])
+        self.assertIn("revenue", result["failed_checks"])
+
+    def test_missing_scores_fail_closed(self):
+        result = approve_mvp_build({})
+        self.assertFalse(result["approved"])
+
+    def test_missing_evidence_breakdown_fails_closed(self):
+        validation = {**self.valid}
+        validation.pop("evidence_breakdown")
+        result = approve_mvp_build(validation)
+        self.assertFalse(result["approved"])
+        self.assertIn("payment_evidence", result["failed_checks"])
+        self.assertIn("pricing_evidence", result["failed_checks"])
+
+    def test_malformed_evidence_breakdown_fails_closed(self):
+        validation = {**self.valid, "evidence_breakdown": None}
+        result = approve_mvp_build(validation)
+        self.assertFalse(result["approved"])
+
+    def test_boolean_score_cannot_qualify(self):
+        validation = {**self.valid, "demand": True}
+        result = approve_mvp_build(validation)
+        self.assertFalse(result["approved"])
+        self.assertIn("demand", result["failed_checks"])
+
+    def test_non_dictionary_input_fails_closed(self):
+        result = approve_mvp_build(None)
+        self.assertFalse(result["approved"])

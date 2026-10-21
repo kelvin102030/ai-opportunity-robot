@@ -28,6 +28,8 @@ robot_state = {
     "message": "Hello! I am your AI Opportunity Robot.",
     "running": False,
     "result": None,
+    "build_context": None,
+    "app_build": None,
 }
 
 HTML = """
@@ -527,6 +529,8 @@ async function loadStatus(){
         status.textContent =
             data.status === 'finished' ? 'Complete' :
             data.status === 'researching' ? 'Thinking...' :
+            data.status === 'generating_app' ? 'Building application...' :
+            data.status === 'app_build_error' ? 'Application error' :
             data.status === 'error' ? 'Error' : 'Ready';
 
         status.className =
@@ -552,7 +556,12 @@ async function loadStatus(){
         if(data.result && !data.running){
             document.getElementById('empty').classList.add('hidden');
             document.getElementById('loading').classList.add('hidden');
-            renderOpportunity(data.result);
+            renderOpportunity(
+                data.result,
+                data.build_context,
+                data.app_build,
+                data.running
+            );
 
             if(data.result !== lastSpokenResult){
                 lastSpokenResult = data.result;
@@ -591,7 +600,92 @@ function extractValue(text,label,nextLabel){
     return value.trim();
 }
 
-function renderOpportunity(raw){
+function renderOpportunity(raw, buildContext, appBuild, isRunning){
+    buildContext = buildContext || {};
+    appBuild = appBuild || null;
+
+    const approval = buildContext.approval || {};
+    const buildPlan = buildContext.build_plan || {};
+    const buildApproved =
+        buildContext.status === 'complete' &&
+        approval.approved === true &&
+        buildPlan.build_eligibility === 'MVP BUILD APPROVED';
+
+    let appBuildPanel = '';
+
+    if(buildApproved){
+        const buildStatus = appBuild && appBuild.status;
+        const isGenerating = isRunning && buildStatus === 'generating';
+        const alreadyGenerated = buildStatus === 'generated_not_executed';
+        const buildFailed = buildStatus === 'error';
+
+        let buttonLabel = '🚀 Generate Application';
+        if(isGenerating) buttonLabel = '⏳ Generating Application...';
+        if(alreadyGenerated) buttonLabel = '✅ Application Source Generated';
+        if(buildFailed) buttonLabel = '🔁 Retry Application Generation';
+
+        let details = '';
+
+        if(appBuild){
+            details = `
+                <div class="section">
+                    <h4>Generation Status</h4>
+                    <p>${escapeHtml(appBuild.message || buildStatus || 'No details available.')}</p>
+                    ${appBuild.project_path ? `
+                        <p><strong>Project folder:</strong><br>
+                        <code>${escapeHtml(appBuild.project_path)}</code></p>
+                    ` : ''}
+                    ${appBuild.archive_path ? `
+                        <p><strong>ZIP archive:</strong><br>
+                        <code>${escapeHtml(appBuild.archive_path)}</code></p>
+                    ` : ''}
+                    ${appBuild.files_created !== undefined ? `
+                        <p><strong>Files created:</strong>
+                        ${escapeHtml(appBuild.files_created)}</p>
+                    ` : ''}
+                    ${appBuild.static_review ? `
+                        <p><strong>Static review:</strong>
+                        ${appBuild.static_review_passed ? 'Passed' : 'Needs attention'}</p>
+                    ` : ''}
+                    <p><strong>Tests executed:</strong>
+                    ${appBuild.tests_run === true ? 'Yes' : 'No'}</p>
+                    <p><strong>Google Play ready:</strong>
+                    ${appBuild.play_store_ready === true ? 'Yes' : 'No'}</p>
+                </div>
+            `;
+        }
+
+        appBuildPanel = `
+            <div class="section" id="app-builder-panel">
+                <h3>${buildFailed ? '⚠️ Application Generation Failed' : '📱 Build Your Application'}</h3>
+                <p>The opportunity passed the MVP approval checks.
+                You can explicitly request source-code generation below.</p>
+                <button
+                    id="generate-app-button"
+                    onclick="generateApplication()"
+                    ${isGenerating || alreadyGenerated || isRunning ? 'disabled' : ''}
+                >${buttonLabel}</button>
+                <p><small>Generated code is not executed automatically.
+                Source generation does not mean an APK has been built or published.</small></p>
+                ${details}
+            </div>
+        `;
+    } else if(buildContext.status === 'complete'){
+        const failed = Array.isArray(approval.failed_checks)
+            ? approval.failed_checks.join(', ')
+            : 'The required approval checks were not satisfied.';
+
+        appBuildPanel = `
+            <div class="section" id="app-builder-panel">
+                <h3>🔒 Application Generation Not Approved</h3>
+                <p>The opportunity has not passed all MVP build requirements.
+                The robot will not generate an application for this opportunity.</p>
+                <p><strong>Checks to address:</strong>
+                ${escapeHtml(failed)}</p>
+            </div>
+        `;
+    }
+
     const title = extractValue(raw,'Title:','Problem:');
     const problem = extractValue(raw,'Problem:','Customer:');
     const customer = extractValue(raw,'Customer:','Solution:');
@@ -680,6 +774,8 @@ function renderOpportunity(raw){
                 )}</div>
             </div>
 
+            ${appBuildPanel}
+
             <button onclick="showEvidence()">📰 View Research Evidence</button>
             <a href="/history" style="display:inline-block;margin-top:10px;padding:10px 14px;border-radius:10px;background:#123047;color:#7dd3fc;text-decoration:none;">📚 View Opportunity History</a>
 
@@ -691,6 +787,45 @@ function renderOpportunity(raw){
         </div>
     `;
     document.getElementById('opportunity').classList.remove('hidden');
+}
+
+async function generateApplication(){
+    const button = document.getElementById('generate-app-button');
+
+    if(!button) return;
+
+    const confirmed = window.confirm(
+        'Generate the application source files for this approved opportunity? ' +
+        'This may use your configured AI provider. The generated code will not ' +
+        'be executed automatically.'
+    );
+
+    if(!confirmed) return;
+
+    button.disabled = true;
+    button.textContent = '⏳ Starting application generation...';
+
+    try{
+        const response = await fetch('/api/generate-app', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        });
+
+        const data = await response.json();
+
+        if(!response.ok){
+            window.alert(data.error || 'Application generation was rejected.');
+        } else {
+            window.alert(data.message || 'Application generation has started.');
+        }
+
+        await loadStatus();
+    }catch(error){
+        window.alert('Could not contact the robot to request application generation.');
+        button.disabled = false;
+        button.textContent = '🚀 Generate Application';
+    }
 }
 
 function extractSection(text, startLabel, endLabel){
@@ -753,15 +888,63 @@ def run_research():
         output = io.StringIO()
 
         with redirect_stdout(output):
-            run_robot()
+            build_context = run_robot()
 
         robot_state["result"] = output.getvalue()
-        robot_state["status"] = "finished"
-        robot_state["message"] = "Research complete. The opportunity has been analyzed."
+        robot_state["build_context"] = build_context
+        robot_state["app_build"] = None
+
+        if isinstance(build_context, dict) and build_context.get("status") == "complete":
+            robot_state["status"] = "finished"
+            robot_state["message"] = (
+                "Research complete. The opportunity and build plan are ready for review."
+            )
+        else:
+            robot_state["status"] = "finished"
+            robot_state["message"] = (
+                "Research finished, but no suitable opportunity was returned."
+            )
 
     except Exception as exc:
         robot_state["status"] = "error"
         robot_state["message"] = str(exc)
+
+    finally:
+        robot_state["running"] = False
+
+
+def run_app_build(context):
+    """Generate an approved application without executing its source code."""
+    try:
+        from brain.app_builder import generate_application
+
+        opportunity = context["opportunity"]
+        validation = context["validation"]
+        build_plan = context["build_plan"]
+
+        result = generate_application(
+            project_name=opportunity["title"],
+            opportunity=opportunity,
+            validation=validation,
+            build_plan=build_plan,
+        )
+
+        robot_state["app_build"] = result
+        robot_state["status"] = "finished"
+        robot_state["message"] = result.get(
+            "message",
+            "Application source generation finished.",
+        )
+
+    except Exception as exc:
+        robot_state["app_build"] = {
+            "status": "error",
+            "message": str(exc),
+        }
+        robot_state["status"] = "app_build_error"
+        robot_state["message"] = (
+            "Application generation failed. Review the error details."
+        )
 
     finally:
         robot_state["running"] = False
@@ -1036,6 +1219,83 @@ def history():
     </body>
     </html>
     """
+
+@app.post("/api/generate-app")
+def generate_app_endpoint():
+    """Start application generation only after server-side approval."""
+    from brain.build_approval import approve_mvp_build
+
+    if robot_state["running"]:
+        return jsonify({
+            "error": "Another robot operation is already running."
+        }), 409
+
+    context = robot_state.get("build_context")
+
+    if not isinstance(context, dict) or context.get("status") != "complete":
+        return jsonify({
+            "error": "Run research successfully before requesting an application."
+        }), 409
+
+    opportunity = context.get("opportunity")
+    validation = context.get("validation")
+    build_plan = context.get("build_plan")
+
+    if not all(isinstance(value, dict) for value in (
+        opportunity, validation, build_plan
+    )):
+        return jsonify({
+            "error": "Research results are incomplete. Run research again."
+        }), 409
+
+    approval = approve_mvp_build(validation)
+
+    if not approval["approved"]:
+        return jsonify({
+            "error": "Application generation denied: MVP approval requirements were not met.",
+            "approval": approval,
+        }), 403
+
+    if build_plan.get("build_eligibility") != "MVP BUILD APPROVED":
+        return jsonify({
+            "error": "Application generation denied: the build plan is not approved."
+        }), 403
+
+    robot_state["running"] = True
+    robot_state["status"] = "generating_app"
+    robot_state["message"] = (
+        "Generating the approved application source files. "
+        "Generated code will not be executed automatically."
+    )
+    robot_state["app_build"] = {
+        "status": "generating",
+        "message": "Application source generation is in progress.",
+    }
+
+    try:
+        threading.Thread(
+            target=run_app_build,
+            args=(context,),
+            daemon=True,
+        ).start()
+    except Exception as exc:
+        robot_state["running"] = False
+        robot_state["status"] = "app_build_error"
+        robot_state["app_build"] = {
+            "status": "error",
+            "message": str(exc),
+        }
+        robot_state["message"] = "Could not start application generation."
+
+        return jsonify({
+            "error": robot_state["message"]
+        }), 500
+
+    return jsonify({
+        "message": robot_state["message"],
+        "status": robot_state["status"],
+    }), 202
+
 
 @app.post("/api/run")
 def start_robot():

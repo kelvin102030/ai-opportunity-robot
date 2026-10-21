@@ -30,7 +30,13 @@ def run_robot():
         print("=========================")
         print("The research did not produce enough relevant evidence to rank a specific business opportunity.")
         print("No business plan has been presented as validated. Retry research or broaden the research queries.")
-        return
+        return {
+            "status": "no_opportunity",
+            "opportunity": None,
+            "validation": None,
+            "approval": None,
+            "build_plan": None,
+        }
 
     analyses = []
 
@@ -347,6 +353,27 @@ def run_robot():
     print("-----------------------")
     for gap in business_validation["validation_gaps"]:
         print(f"- {gap}")
+
+    # Return structured, JSON-compatible results for the dashboard.
+    # Keep the original validation unchanged so approval can be
+    # independently checked before application generation.
+    return {
+        "status": "complete",
+        "opportunity": {
+            "title": best.title,
+            "problem": best.problem,
+            "solution": best.solution,
+            "target_customer": best.target_customer,
+            "revenue_model": best.revenue_model,
+            "confidence": best.confidence,
+            "evidence_count": best.evidence_count,
+            "signal": candidates[best_index]["signal"],
+            "next_test": best.next_test,
+        },
+        "validation": business_validation,
+        "approval": mvp_build_approval,
+        "build_plan": build_plan,
+    }
 
 
 if __name__ == "__main__":
