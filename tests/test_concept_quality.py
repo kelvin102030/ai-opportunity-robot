@@ -3,6 +3,7 @@ import unittest
 from brain.opportunities import (
     _research_similarity,
     _cluster_research,
+    _concept_evidence_score,
     generate_concrete_opportunities,
 )
 
@@ -146,6 +147,51 @@ class ConceptQualityTests(unittest.TestCase):
         )
 
 
+
+    def test_independent_stories_outscore_duplicate_coverage(self):
+        duplicate_reports = [
+            {
+                "title": "NCC fines Airtel over customer complaints",
+                "source": f"News {i}",
+            }
+            for i in range(5)
+        ]
+
+        independent_reports = [
+            {"title": "Retailers struggle with frequent stock shortages"},
+            {"title": "Farmers lose harvests because crops spoil quickly"},
+            {"title": "Clinics face patient queues from staff shortages"},
+            {"title": "Transport operators struggle with rising fuel costs"},
+            {"title": "Schools lack affordable classroom learning materials"},
+        ]
+
+        duplicate_score = _concept_evidence_score(duplicate_reports)
+        independent_score = _concept_evidence_score(independent_reports)
+
+        self.assertGreater(
+            independent_score,
+            duplicate_score,
+            "Five independent stories should score higher than five "
+            "reports about one underlying event.",
+        )
+
+    def test_repeated_coverage_does_not_receive_full_independence_credit(self):
+        reports = [
+            {
+                "title": "NCC fines Airtel over customer complaints",
+                "source": f"News {i}",
+            }
+            for i in range(5)
+        ]
+
+        score = _concept_evidence_score(reports)
+
+        self.assertLess(
+            score,
+            60,
+            "Repeated coverage of one event should not earn the full "
+            "evidence-quantity score without independent corroboration.",
+        )
 
     def test_duplicate_coverage_counts_as_one_story(self):
         from brain.opportunities import _count_story_clusters

@@ -552,10 +552,18 @@ def _research_support_score(evidence_count, source_independence):
 
 
 def _concept_evidence_score(cluster):
+    """Score independent research support, not repeated article volume."""
     evidence_count = len(cluster)
+
+    if evidence_count == 0:
+        return 0
+
     story_clusters = _count_story_clusters(cluster)
-    independence = story_clusters / evidence_count if evidence_count else 0
-    return _research_support_score(evidence_count, independence)
+    independence = story_clusters / evidence_count
+
+    # Repeated coverage of one story must not earn the same evidence
+    # quantity credit as multiple independent stories.
+    return _research_support_score(story_clusters, independence)
 
 
 def generate_concrete_opportunities(research, max_candidates=20):
