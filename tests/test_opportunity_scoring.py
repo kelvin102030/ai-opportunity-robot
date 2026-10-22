@@ -333,6 +333,19 @@ class PricingRegexRegressionTests(unittest.TestCase):
                 result = _web_evidence_type({"text": text})
                 self.assertTrue(result["pricing"])
 
+    def test_written_currency_amounts_are_detected_as_web_pricing(self):
+        from brain.business_validation import _web_evidence_type
+
+        examples = [
+            "The service costs 5000 naira",
+            "The service costs 20 dollars",
+        ]
+
+        for text in examples:
+            with self.subTest(text=text):
+                result = _web_evidence_type({"text": text})
+                self.assertTrue(result["pricing"])
+
     def test_naira_and_dollar_amounts_count_as_pricing_evidence(self):
         from brain.business_validation import _score_revenue
 

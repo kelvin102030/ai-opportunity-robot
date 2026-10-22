@@ -216,10 +216,15 @@ def _web_evidence_type(page):
     ]
 
     evidence["vendor"] = any(term in text for term in vendor_terms)
+    pricing_patterns = [
+        r"₦\s?[0-9][0-9,]*(?:\.\d+)?",
+        r"\$\s?[0-9][0-9,]*(?:\.\d+)?",
+        r"\b[0-9][0-9,]*\s?(?:naira|dollars)\b",
+    ]
+
     evidence["pricing"] = (
         any(term in text for term in pricing_terms)
-        or bool(re.search(r"₦\s?[0-9][0-9,]*(?:\.\d+)?", text))
-        or bool(re.search(r"\$\s?[0-9][0-9,]*(?:\.\d+)?", text))
+        or any(re.search(pattern, text) for pattern in pricing_patterns)
     )
     evidence["willingness_to_pay"] = any(
         term in text for term in willingness_terms
