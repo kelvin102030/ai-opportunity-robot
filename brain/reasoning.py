@@ -167,6 +167,15 @@ def _infer_revenue(candidate):
 
 def _calculate_confidence(candidate):
     """Measure research support, not commercial profitability."""
+    score = candidate.get("opportunity_score")
+
+    if (
+        isinstance(score, (int, float))
+        and not isinstance(score, bool)
+        and 0 <= score <= 100
+    ):
+        return round(score / 100.0, 2)
+
     evidence = max(0, int(candidate.get("evidence_count", 0) or 0))
     independence = float(candidate.get("source_independence", 0) or 0)
     independence = max(0.0, min(independence, 1.0))
@@ -177,6 +186,15 @@ def _calculate_confidence(candidate):
 
 def _calculate_opportunity_score(candidate):
     """Return a comparable 0-100 research-support score."""
+    score = candidate.get("opportunity_score")
+
+    if (
+        isinstance(score, (int, float))
+        and not isinstance(score, bool)
+        and 0 <= score <= 100
+    ):
+        return round(score)
+
     evidence = max(0, int(candidate.get("evidence_count", 0) or 0))
     independence = float(candidate.get("source_independence", 0) or 0)
     independence = max(0.0, min(independence, 1.0))
