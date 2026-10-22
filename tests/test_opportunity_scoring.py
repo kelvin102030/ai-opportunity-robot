@@ -314,3 +314,52 @@ class ApprovalInputSafetyTests(unittest.TestCase):
     def test_non_dictionary_input_fails_closed(self):
         result = approve_mvp_build(None)
         self.assertFalse(result["approved"])
+
+
+class PricingRegexRegressionTests(unittest.TestCase):
+
+    def test_currency_prices_are_detected_without_pricing_keywords(self):
+        from brain.business_validation import _web_evidence_type
+
+        examples = [
+            "The monthly price is ₦5,000",
+            "The monthly price is ₦ 5,000",
+            "The subscription costs $20",
+            "The service costs $ 20.50",
+        ]
+
+        for text in examples:
+            with self.subTest(text=text):
+                result = _web_evidence_type({"text": text})
+                self.assertTrue(result["pricing"])
+
+    def test_naira_and_dollar_amounts_count_as_pricing_evidence(self):
+        from brain.business_validation import _score_revenue
+
+        examples = [
+            {"title": "Service information", "description": "₦5,000"},
+            {"title": "Service information", "description": "₦ 5,000"},
+            {"title": "Service information", "description": "$20"},
+            {"title": "Service information", "description": "5000 naira"},
+            {"title": "Service information", "description": "20 dollars"},
+        ]
+
+        for item in examples:
+            with self.subTest(item=item):
+                self.assertGreaterEqual(_score_revenue([item]), 15)
+
+    def test_pricing_does_not_automatically_prove_payment(self):
+        from brain.business_validation import (
+            _commercial_evidence_breakdown,
+        )
+
+        item = {
+            "title": "Service information",
+            "description": "The service costs ₦5,000 per month.",
+            "validation_type": "commercial",
+        }
+
+        result = _commercial_evidence_breakdown([item])
+
+        self.assertGreaterEqual(result["pricing_evidence"], 1)
+        self.assertEqual(result["payment_evidence"], 0)

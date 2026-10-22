@@ -218,8 +218,8 @@ def _web_evidence_type(page):
     evidence["vendor"] = any(term in text for term in vendor_terms)
     evidence["pricing"] = (
         any(term in text for term in pricing_terms)
-        or bool(re.search(r"₦\\s?[0-9][0-9,]*(?:\\.\\d+)?", text))
-        or bool(re.search(r"\\$\\s?[0-9][0-9,]*(?:\\.\\d+)?", text))
+        or bool(re.search(r"₦\s?[0-9][0-9,]*(?:\.\d+)?", text))
+        or bool(re.search(r"\$\s?[0-9][0-9,]*(?:\.\d+)?", text))
     )
     evidence["willingness_to_pay"] = any(
         term in text for term in willingness_terms
@@ -377,8 +377,8 @@ def _commercial_evidence_breakdown(items):
 
         if (
             any(term in text for term in pricing_terms)
-            or re.search(r"₦\\s?[0-9][0-9,]*(?:\\.\\d+)?", text)
-            or re.search(r"\\$\\s?[0-9][0-9,]*(?:\\.\\d+)?", text)
+            or re.search(r"₦\s?[0-9][0-9,]*(?:\.\d+)?", text)
+            or re.search(r"\$\s?[0-9][0-9,]*(?:\.\d+)?", text)
         ):
             breakdown["pricing_evidence"] += 1
 
@@ -539,9 +539,9 @@ def _score_revenue(items):
     ]
 
     pricing_patterns = [
-        r"₦\\s?[0-9][0-9,]*(?:\\.\\d+)?",
-        r"\\$\\s?[0-9][0-9,]*(?:\\.\\d+)?",
-        r"\\b[0-9][0-9,]*\\s?(?:naira|dollars)\\b",
+        r"₦\s?[0-9][0-9,]*(?:\.\d+)?",
+        r"\$\s?[0-9][0-9,]*(?:\.\d+)?",
+        r"\b[0-9][0-9,]*\s?(?:naira|dollars)\b",
     ]
 
     payment_hits = 0
