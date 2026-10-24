@@ -43,6 +43,20 @@ def _research_domain(candidate):
     """Identify a narrow problem area from the available research."""
     text = _research_text(candidate)
 
+    reconciliation_terms = (
+        "reconcil", "unmatched payment", "payment mismatch",
+        "transaction mismatch",
+    )
+    financial_record_terms = (
+        "payment", "mobile money", "transaction",
+        "sales record", "invoice", "receipt",
+    )
+    if (
+        any(term in text for term in reconciliation_terms)
+        and any(term in text for term in financial_record_terms)
+    ):
+        return "payment_reconciliation"
+
     if any(word in text for word in (
         "inventory", "stock management", "stock tracking",
         "stock discrepancy", "stock discrepancies", "missing products",
@@ -56,6 +70,7 @@ def _research_domain(candidate):
         "staff shortages", "patient queue",
     )):
         return "clinic_waiting"
+
 
     if any(word in text for word in (
         "customer complaint", "customer support", "support tickets",
@@ -79,6 +94,13 @@ def _research_customer(candidate):
         return (
             "Managers and administrative staff at private clinics and "
             "small healthcare facilities experiencing appointment or queue delays."
+        )
+
+    if domain == "payment_reconciliation":
+        return (
+            "Owners and finance staff at small businesses that receive "
+            "digital payments and need to match transaction records "
+            "against sales, invoices, or receipts."
         )
 
     if domain == "customer_support":
@@ -109,6 +131,14 @@ def _research_solution(candidate):
             "patient information before handling real patient data."
         )
 
+    if domain == "payment_reconciliation":
+        return (
+            "A lightweight reconciliation tool that organizes payment and "
+            "sales records, highlights unmatched transactions for manual "
+            "review, and produces a clear exception list. Validate supported "
+            "payment sources before claiming automatic integrations."
+        )
+
     if domain == "customer_support":
         return (
             "A lightweight complaint-tracking tool that records each issue, "
@@ -136,6 +166,12 @@ def _research_revenue(candidate):
             "purchasing requirements, and applicable privacy obligations."
         )
 
+    if domain == "payment_reconciliation":
+        return (
+            "Test a monthly subscription only after interviews establish "
+            "reconciliation frequency, current costs, and willingness to pay."
+        )
+
     if domain == "customer_support":
         return (
             "Test monthly business subscriptions with pricing based on "
@@ -161,6 +197,14 @@ def _refine_research_problem(candidate):
             "Clinics may struggle to coordinate appointments and patient "
             "queues when demand exceeds available staff capacity. "
             "The causes and potential benefit of scheduling tools need validation."
+        )
+
+    if domain == "payment_reconciliation":
+        return (
+            "Small businesses may spend time or make errors reconciling "
+            "payment transactions against sales, invoices, or receipts. "
+            "Confirm how often mismatches occur and the time or money they "
+            "cost before treating this as a validated problem."
         )
 
     if domain == "customer_support":
@@ -404,6 +448,8 @@ def analyze_candidate(candidate):
             title = "Clinic Appointment and Queue Management"
         elif domain == "customer_support":
             title = "Customer Complaint Tracking for Small Businesses"
+        elif domain == "payment_reconciliation":
+            title = "Payment Reconciliation for Small Businesses"
         else:
             concept = str(candidate.get("concept", "")).strip()
             title = (

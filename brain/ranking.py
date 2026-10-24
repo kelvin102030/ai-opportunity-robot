@@ -29,6 +29,15 @@ def _is_generic_research_lead(analysis):
         "market opportunities",
         "business opportunities",
         "general software",
+        "payments finance",
+        "financial services",
+        "digital finance",
+        "fintech",
+        "consumer finance",
+        "business finance",
+        "banking services",
+        "online banking",
+        "commerce marketplace",
     )
 
     if title.startswith("opportunity:"):

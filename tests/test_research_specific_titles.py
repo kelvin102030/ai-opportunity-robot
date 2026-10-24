@@ -86,5 +86,44 @@ class ResearchSpecificTitleTests(unittest.TestCase):
             self.assertIn("subscription", result.revenue_model.lower())
 
 
+
+    def test_payment_reconciliation_research_gets_specific_title_and_solution(self):
+        candidate = {
+            "signal": "research_concept",
+            "concept": "Payment Transaction Reconciliation",
+            "problem": "Research discusses reconciliation problems.",
+            "evidence_count": 2,
+            "source_independence": 1.0,
+            "opportunity_score": 64,
+            "matched_keywords": [],
+            "evidence_items": [
+                {
+                    "title": "Small businesses struggle to reconcile payments with sales records",
+                    "description": "Owners manually compare transaction records with daily sales.",
+                    "source": "Business News",
+                    "query": "payment reconciliation",
+                    "link": "https://example.com/pay1",
+                },
+                {
+                    "title": "Retailers report payment mismatches in transaction records",
+                    "description": "Unmatched payments make daily sales reconciliation time-consuming.",
+                    "source": "Finance News",
+                    "query": "transaction mismatch",
+                    "link": "https://example.com/pay2",
+                },
+            ],
+        }
+
+        result = analyze_candidate(candidate)
+        self.assertEqual(
+            result.title,
+            "Payment Reconciliation for Small Businesses",
+        )
+        self.assertIn("reconcil", result.problem.lower())
+        self.assertIn("transaction", result.solution.lower())
+        self.assertIn("small businesses", result.target_customer.lower())
+        self.assertIn("willingness to pay", result.revenue_model.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
