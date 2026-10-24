@@ -20,8 +20,170 @@ def _title_from_signal(signal):
     return " ".join(word.capitalize() for word in words)
 
 
+def _research_text(candidate):
+    """Combine research evidence into searchable text."""
+    parts = [
+        str(candidate.get("concept", "")),
+        str(candidate.get("problem", "")),
+        " ".join(map(str, candidate.get("matched_keywords", []))),
+    ]
+
+    for item in candidate.get("evidence_items", []):
+        if isinstance(item, dict):
+            parts.extend([
+                str(item.get("title", "")),
+                str(item.get("description", "")),
+                str(item.get("text", "")),
+            ])
+
+    return " ".join(parts).lower()
+
+
+def _research_domain(candidate):
+    """Identify a narrow problem area from the available research."""
+    text = _research_text(candidate)
+
+    if any(word in text for word in (
+        "inventory", "stock management", "stock tracking",
+        "stock discrepancy", "stock discrepancies", "missing products",
+        "retail shop", "retailers", "shop owners",
+    )):
+        return "inventory"
+
+    if any(word in text for word in (
+        "clinic", "hospital", "patient waiting", "waiting time",
+        "waiting times", "appointment scheduling", "appointment delays",
+        "staff shortages", "patient queue",
+    )):
+        return "clinic_waiting"
+
+    if any(word in text for word in (
+        "customer complaint", "customer support", "support tickets",
+        "complaint tracking",
+    )):
+        return "customer_support"
+
+    return "general"
+
+
+def _research_customer(candidate):
+    domain = _research_domain(candidate)
+
+    if domain == "inventory":
+        return (
+            "Owners and managers of small retail shops, provision stores, "
+            "and independent merchants who track stock manually."
+        )
+
+    if domain == "clinic_waiting":
+        return (
+            "Managers and administrative staff at private clinics and "
+            "small healthcare facilities experiencing appointment or queue delays."
+        )
+
+    if domain == "customer_support":
+        return (
+            "Small and medium-sized businesses that receive customer complaints "
+            "and need a reliable way to track and resolve them."
+        )
+
+    return None
+
+
+def _research_solution(candidate):
+    domain = _research_domain(candidate)
+
+    if domain == "inventory":
+        return (
+            "A mobile inventory tool that records stock received and sold, "
+            "alerts shop owners when items run low, and flags discrepancies "
+            "for manual review. Test a simple stock ledger before adding "
+            "automatic integrations."
+        )
+
+    if domain == "clinic_waiting":
+        return (
+            "A clinic appointment and queue-management tool that records "
+            "appointments, organizes the waiting list, and gives staff a "
+            "clear view of delays. Validate clinic workflows and protect "
+            "patient information before handling real patient data."
+        )
+
+    if domain == "customer_support":
+        return (
+            "A lightweight complaint-tracking tool that records each issue, "
+            "assigns responsibility, tracks resolution status, and reminds "
+            "staff about overdue responses."
+        )
+
+    return None
+
+
+def _research_revenue(candidate):
+    domain = _research_domain(candidate)
+
+    if domain == "inventory":
+        return (
+            "Test a monthly subscription per shop, with a basic free tier "
+            "and paid stock reports or multi-user features if customers "
+            "demonstrate willingness to pay."
+        )
+
+    if domain == "clinic_waiting":
+        return (
+            "Test a monthly subscription per clinic, priced according to "
+            "staff accounts or facility size. Confirm clinic budgets, "
+            "purchasing requirements, and applicable privacy obligations."
+        )
+
+    if domain == "customer_support":
+        return (
+            "Test monthly business subscriptions with pricing based on "
+            "the number of staff members or complaint volume."
+        )
+
+    return None
+
+
+def _refine_research_problem(candidate):
+    """Replace a generic research-cluster summary with a specific hypothesis."""
+    domain = _research_domain(candidate)
+
+    if domain == "inventory":
+        return (
+            "Small retailers may lose sales or money when stock records "
+            "are inaccurate, products go missing, or replenishment is delayed. "
+            "The frequency and financial impact need customer validation."
+        )
+
+    if domain == "clinic_waiting":
+        return (
+            "Clinics may struggle to coordinate appointments and patient "
+            "queues when demand exceeds available staff capacity. "
+            "The causes and potential benefit of scheduling tools need validation."
+        )
+
+    if domain == "customer_support":
+        return (
+            "Businesses may lose customer trust when complaints are not "
+            "recorded, assigned, and resolved promptly. The scale and cost "
+            "of this problem need validation."
+        )
+
+    return candidate.get(
+        "problem",
+        "Research suggests a possible customer problem that requires validation.",
+    )
+
+
 def _infer_customer(candidate):
     signal = candidate.get("signal", "")
+
+    if signal == "research_concept":
+        specific_customer = _research_customer(candidate)
+        if specific_customer:
+            return specific_customer
+
     keywords = set(candidate.get("matched_keywords", []))
 
     customer_map = {
@@ -67,6 +229,11 @@ def _infer_solution(candidate):
     )
 
     signal = candidate.get("signal", "")
+
+    if signal == "research_concept":
+        specific_solution = _research_solution(candidate)
+        if specific_solution:
+            return specific_solution
 
     solution_map = {
         "consumer_pain": (
@@ -141,6 +308,11 @@ def _infer_solution(candidate):
 def _infer_revenue(candidate):
     signal = candidate.get("signal", "")
 
+    if signal == "research_concept":
+        specific_revenue = _research_revenue(candidate)
+        if specific_revenue:
+            return specific_revenue
+
     revenue_map = {
         "consumer_pain": "Direct purchases, subscriptions, transaction fees, or premium features.",
         "business_automation": "Monthly or annual business subscriptions, usage fees, or service contracts.",
@@ -211,6 +383,9 @@ def analyze_candidate(candidate):
     )
     matched_keywords = candidate.get("matched_keywords", [])
 
+    if signal == "research_concept":
+        problem = _refine_research_problem(candidate)
+
     target_customer = _infer_customer(candidate)
     solution = _infer_solution(candidate)
     revenue_model = _infer_revenue(candidate)
@@ -218,15 +393,24 @@ def analyze_candidate(candidate):
     confidence = _calculate_confidence(candidate)
     opportunity_score = _calculate_opportunity_score(candidate)
 
-    # Avoid presenting a broad catch-all category as if it were a concrete business.
-    # Use research-derived language for the display title and make the status explicit.
+    # Give research-backed opportunities readable, domain-specific titles.
+    # These are hypotheses, not proof that a business will succeed.
     if signal == "research_concept":
-        concept = str(candidate.get("concept", "")).strip()
-        title = (
-            f"Opportunity candidate: {concept[:100]}"
-            if concept
-            else "Unvalidated research-backed opportunity"
-        )
+        domain = _research_domain(candidate)
+
+        if domain == "inventory":
+            title = "Smart Inventory Management for Small Retailers"
+        elif domain == "clinic_waiting":
+            title = "Clinic Appointment and Queue Management"
+        elif domain == "customer_support":
+            title = "Customer Complaint Tracking for Small Businesses"
+        else:
+            concept = str(candidate.get("concept", "")).strip()
+            title = (
+                f"Unvalidated Opportunity: {concept[:90]}"
+                if concept
+                else "Unvalidated Research-Backed Opportunity"
+            )
     elif signal == "emerging_market":
         evidence_items = candidate.get("evidence_items", [])
         evidence_titles = [
@@ -235,9 +419,9 @@ def analyze_candidate(candidate):
             if str(item.get("title", "")).strip()
         ]
         if evidence_titles:
-            title = "Research lead: " + evidence_titles[0][:90]
+            title = "Research Lead: " + evidence_titles[0][:90]
         else:
-            title = "Unvalidated research lead"
+            title = "Unvalidated Research Lead"
     else:
         title = f"Opportunity: {_title_from_signal(signal)}"
 
