@@ -696,7 +696,7 @@ function renderOpportunity(raw, buildContext, appBuild, isRunning){
     const evidenceMatch = raw.match(/(\\d+) research evidence signals/);
     const evidence = evidenceMatch ? evidenceMatch[1] : '—';
 
-    const confidencePercent =
+    const researchSupportScore =
         confidence && !isNaN(parseFloat(confidence))
         ? Math.round(parseFloat(confidence) * 100)
         : '—';
@@ -704,18 +704,18 @@ function renderOpportunity(raw, buildContext, appBuild, isRunning){
     document.getElementById('opportunity').innerHTML = `
         <div class="opportunity">
 
-            <span class="badge">TOP OPPORTUNITY</span>
+            <span class="badge">TOP RESEARCH OPPORTUNITY</span>
 
             <h2>${escapeHtml(title || 'Opportunity discovered')}</h2>
 
             <div class="score">
-                ${confidencePercent}${confidencePercent !== '—' ? '%' : ''}
+                ${researchSupportScore}${researchSupportScore !== '—' ? '/100' : ''}
             </div>
 
             <div class="metric-grid">
                 <div class="metric">
-                    <small>Confidence</small>
-                    <strong>${confidencePercent}${confidencePercent !== '—' ? '%' : ''}</strong>
+                    <small>Research support score</small>
+                    <strong>${researchSupportScore}${researchSupportScore !== '—' ? '/100' : ''}</strong>
                 </div>
 
                 <div class="metric">
@@ -723,6 +723,12 @@ function renderOpportunity(raw, buildContext, appBuild, isRunning){
                     <strong>${escapeHtml(evidence)}</strong>
                 </div>
             </div>
+
+            <p class="score-note">
+                This score reflects research coverage and source independence.
+                It is not a probability of business success and does not prove
+                customer demand, payment, or profitability.
+            </p>
 
             <div class="section">
                 <h3>🔴 The Problem</h3>
